@@ -5,8 +5,8 @@ use std::collections::{BTreeSet, HashSet};
 use std::fs::File;
 use std::io::{self, BufRead};
 use std::path::Path;
-use tabled::{Tabled, Table};
 use std::{borrow::Borrow, cmp::max, cmp::min, collections::HashMap};
+use tabled::{Table, Tabled};
 
 #[derive(Debug)]
 pub struct TaxonSet {
