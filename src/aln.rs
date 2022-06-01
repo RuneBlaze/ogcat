@@ -6,6 +6,7 @@ use seq_io::fasta::Reader;
 // use std::fmt::Display;
 use seq_io::{fasta::OwnedRecord, prelude::*};
 use std::fmt::Display;
+use std::io::BufWriter;
 // needed to import necessary traits
 use std::{
     fs::File,
@@ -225,6 +226,11 @@ pub fn approx_pdis(filename: &PathBuf, alph: Alphabet) -> Result<PdisResult, &'s
     }
 }
 
+// pub fn aln_sample(
+//     filename : &PathBuf,
+//     sequences
+// )
+
 pub fn aln_mask(
     filename: &PathBuf,
     num_sites: usize,
@@ -277,6 +283,7 @@ pub fn aln_mask(
 
     let mut r2 = Reader::from_path(filename).unwrap();
     let mut f = File::create(outfile).unwrap();
+    let mut writer = BufWriter::new(f);
     while let Some(result) = r2.next() {
         let mut pos = 0usize;
         let mut buf: Vec<u8> = vec![];
@@ -289,12 +296,12 @@ pub fn aln_mask(
                 pos += 1;
             }
         }
-        f.write(&[b'>']).unwrap();
-        f.write(r.head()).unwrap();
-        f.write(&[b'\n']).unwrap();
+        writer.write(&[b'>']).unwrap();
+        writer.write(r.head()).unwrap();
+        writer.write(&[b'\n']).unwrap();
         buf.chunks(60).for_each(|chunk| {
-            f.write(chunk).unwrap();
-            f.write(&[b'\n']).unwrap();
+            writer.write(chunk).unwrap();
+            writer.write(&[b'\n']).unwrap();
         });
     }
     MaskResult {
