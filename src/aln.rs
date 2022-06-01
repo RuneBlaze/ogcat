@@ -1,7 +1,7 @@
-use rand::{seq::*, Rng};
-use seq_io::fasta::Reader;
 use itertools::{iproduct, Itertools};
+use rand::{seq::*, Rng};
 use rayon::prelude::*;
+use seq_io::fasta::Reader;
 
 // use std::fmt::Display;
 use seq_io::{fasta::OwnedRecord, prelude::*};
@@ -61,9 +61,13 @@ pub fn all_pairs_p_distance(matrix: &[Vec<u8>], alph: Alphabet) -> Option<(f64, 
     } else {
         NC_WILDCARD
     };
-    let p_dis : Vec<f64> = (0..matrix.len()).combinations(2).par_bridge().flat_map(|v| {
-        return p_distance(&matrix[v[0]], &matrix[v[1]], wildcard);
-    }).collect();
+    let p_dis: Vec<f64> = (0..matrix.len())
+        .combinations(2)
+        .par_bridge()
+        .flat_map(|v| {
+            return p_distance(&matrix[v[0]], &matrix[v[1]], wildcard);
+        })
+        .collect();
 
     if p_dis.is_empty() {
         return None;

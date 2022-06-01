@@ -9,6 +9,8 @@ use std::path::PathBuf;
 use tabled::{builder::Builder, Style};
 use tabled::{Table, Tabled};
 
+use crate::ogcat::RFPrettyOutput;
+
 #[derive(Parser, Debug)]
 #[clap(author, version, about)]
 struct Args {
@@ -35,6 +37,11 @@ enum SubCommand {
         fast: bool,
     },
 
+    RfAllpairs {
+        #[clap(short, long = "trees", multiple_values = true)]
+        trees: Vec<String>,
+    },
+
     AlnStats {
         #[clap()]
         input: PathBuf,
@@ -51,6 +58,53 @@ enum SubCommand {
         #[clap(short, long, default_value_t = 1f64)]
         percent: f64,
     },
+}
+
+#[derive(Debug, Serialize)]
+pub struct RFPairResult {
+    pub pair: (usize, usize),
+    pub result: ogcat::RFPrettyOutput,
+}
+
+#[derive(Debug, Serialize)]
+pub struct RFPairResults {
+    pub files: Option<Vec<String>>,
+    pub results: Vec<RFPairResult>,
+}
+
+fn execute_rf_allpairs(trees: &[String], format: Format) {
+    let coll = if trees.len() == 1 {
+        TreeCollection::from_newick(&trees[0]).unwrap()
+    } else {
+        TreeCollection::from_multiple(trees).unwrap()
+    };
+    assert!(coll.ngenes() > 1);
+    let res = ogcat::compare_allpairs(&coll);
+    let mut paired_results: Vec<RFPairResult> = vec![];
+    let mut cnt = 0;
+    for i in 0..(coll.ngenes() - 1) {
+        for j in (i + 1)..coll.ngenes() {
+            paired_results.push(RFPairResult {
+                pair: (i, j),
+                result: RFPrettyOutput::new(res[cnt]),
+            });
+            cnt += 1;
+        }
+    }
+    let output = RFPairResults {
+        files: if trees.len() == 1 {
+            None
+        } else {
+            Some(trees.iter().cloned().collect())
+        },
+        results: paired_results,
+    };
+    assert_eq!(
+        Format::Json,
+        format,
+        "none JSON formats not yet implemented"
+    );
+    println!("{}", serde_json::to_string_pretty(&output).unwrap());
 }
 
 fn execute_rf(reference: &PathBuf, estimated: &PathBuf, fast: bool, format: Format) {
@@ -117,10 +171,43 @@ fn main() {
         }
         SubCommand::AlnStats { input, pdis } => {
             let res = aln::aln_linear_stats(&input);
-            println!("{}", Table::new([&res]).with(Style::modern()).to_string());
-            let pdis = aln::approx_pdis(&input, (res.alph).clone()).unwrap();
-            println!("{}", Table::new([&pdis]).with(Style::modern()).to_string());
+            let p_result = if pdis {
+                Some(aln::approx_pdis(&input, (res.alph).clone()).unwrap())
+            } else {
+                None
+            };
+            let table = Builder::default()
+                .set_columns([
+                    "alph",
+                    "columns",
+                    "rows",
+                    "gap_ratio",
+                    "avg_seq_length",
+                    "avg_p_dis",
+                    "max_p_dis",
+                ])
+                .add_record([
+                    res.alph.to_string(),
+                    res.width.to_string(),
+                    res.rows.to_string(),
+                    format!(
+                        "{:.3}%",
+                        (res.gap_cells as f64) / res.total_cells as f64 * 100.0
+                    ),
+                    format!("{:.3}%", res.avg_sequence_length),
+                ]);
+            // if pdis {
+
+            // } else {
+
+            // }
+            // println!("{}", Table::new([&res]).with(Style::modern()).to_string());
+            // let pdis = ;
+            // println!("{}", Table::new([&pdis]).with(Style::modern()).to_string());
         }
+        SubCommand::RfAllpairs { trees } => {
+            execute_rf_allpairs(&trees, args.format);
+        },
         _ => {
             panic!("Unsupported subcommand");
         }

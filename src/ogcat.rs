@@ -202,6 +202,20 @@ pub fn compare_many2many(collection: &TreeCollection) -> Vec<RFOutput> {
         .collect();
 }
 
+pub fn compare_allpairs(collection: &TreeCollection) -> Vec<RFOutput> {
+    let mut res = Vec::new();
+    for i in 0..(collection.ngenes() - 1) {
+        for j in (i + 1)..collection.ngenes() {
+            res.push(compare_amplified(
+                &collection.taxon_set,
+                &collection.trees[i],
+                &collection.trees[j],
+            ));
+        }
+    }
+    return res;
+}
+
 #[derive(Debug)]
 pub struct TreeCollection {
     pub taxon_set: TaxonSet,
@@ -213,6 +227,29 @@ impl TreeCollection {
         TreeCollection {
             taxon_set: TaxonSet::new(),
             trees: Vec::new(),
+        }
+    }
+
+    pub fn from_multiple<P>(filenames: &[P]) -> Result<Self, String>
+    where
+        P: AsRef<Path> + std::fmt::Display,
+    {
+        if filenames.is_empty() {
+            return Err("No files provided".to_string());
+        } else {
+            let mut tree_col = TreeCollection::from_newick(&filenames[0])?;
+            for i in 1..filenames.len() {
+                let added = tree_col.add_trees(&filenames[i])?;
+                if added == 0 {
+                    return Err(format!("{} contains no trees.", filenames[i]));
+                } else if added > 1 {
+                    return Err(format!(
+                        "{} contains {} trees, but only one is expected.",
+                        filenames[i], added
+                    ));
+                }
+            }
+            Ok(tree_col)
         }
     }
 
@@ -245,11 +282,12 @@ impl TreeCollection {
         self.taxon_set.len()
     }
 
-    pub fn add_trees<P>(&mut self, filename: P) -> Result<(), &'static str>
+    pub fn add_trees<P>(&mut self, filename: P) -> Result<usize, &'static str>
     where
         P: AsRef<Path>,
     {
         if let Ok(lines) = read_lines(filename) {
+            let mut lines_read = 0;
             for line in lines {
                 if let Ok(newick) = line {
                     let parsed = parse_newick(&mut self.taxon_set, newick.as_str());
@@ -257,8 +295,9 @@ impl TreeCollection {
                 } else {
                     return Err("Error reading file");
                 }
+                lines_read += 1;
             }
-            return Ok(());
+            return Ok(lines_read);
         } else {
             return Err("Could not read file");
         }
