@@ -194,8 +194,11 @@ fn main() {
                         "{:.3}%",
                         (res.gap_cells as f64) / res.total_cells as f64 * 100.0
                     ),
-                    format!("{:.3}%", res.avg_sequence_length),
-                ]);
+                    format!("{:.3}", res.avg_sequence_length),
+                    format!("{:.3}", p_result.as_ref().unwrap().avg_pdis),
+                    format!("{:.3}", p_result.unwrap().max_pdis),
+                ]).build();
+            println!("{}", table.with(Style::modern()).to_string());
             // if pdis {
 
             // } else {

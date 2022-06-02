@@ -33,7 +33,7 @@ impl Display for Alphabet {
     }
 }
 
-pub fn p_distance(lhs: &[u8], rhs: &[u8], ambiguous: u8) -> Option<f64> {
+pub fn p_distance(lhs: &[u8], rhs: &[u8], ambiguous: u8) -> Option<(usize, usize, f64)> {
     let mut tt = 0;
     let mut diff = 0;
     lhs.iter().zip(rhs.iter()).for_each(|(l, r)| {
@@ -51,7 +51,7 @@ pub fn p_distance(lhs: &[u8], rhs: &[u8], ambiguous: u8) -> Option<f64> {
     if tt == 0 {
         return None;
     } else {
-        return Some(diff as f64 / tt as f64);
+        return Some((diff, tt, diff as f64 / tt as f64));
     }
 }
 
@@ -62,7 +62,7 @@ pub fn all_pairs_p_distance(matrix: &[Vec<u8>], alph: Alphabet) -> Option<(f64, 
     } else {
         NC_WILDCARD
     };
-    let p_dis: Vec<f64> = (0..matrix.len())
+    let p_dis: Vec<(usize, usize, f64)> = (0..matrix.len())
         .combinations(2)
         .par_bridge()
         .flat_map(|v| {
@@ -73,8 +73,10 @@ pub fn all_pairs_p_distance(matrix: &[Vec<u8>], alph: Alphabet) -> Option<(f64, 
     if p_dis.is_empty() {
         return None;
     } else {
-        let avg = p_dis.iter().sum::<f64>() / p_dis.len() as f64;
-        let max = p_dis.iter().fold(0f64, |acc, x| acc.max(*x));
+        let top = p_dis.iter().map(|i| i.0).sum::<usize>();
+        let bottom = p_dis.iter().map(|i| i.1).sum::<usize>();
+        let avg = top as f64 / bottom as f64;
+        let max = p_dis.iter().fold(0f64, |acc, x| acc.max(x.2));
         return Some((avg, max));
     }
 }
@@ -168,7 +170,7 @@ pub struct MaskResult {
     pub total_rows: usize,
 }
 
-#[derive(Debug, Tabled)]
+#[derive(Debug, Tabled, Clone)]
 pub struct PdisResult {
     pub avg_pdis: f64,
     pub max_pdis: f64,
