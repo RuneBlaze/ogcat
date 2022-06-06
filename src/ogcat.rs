@@ -1,5 +1,6 @@
 use clap::ArgEnum;
 use rand::prelude::*;
+use rayon::iter::{IntoParallelIterator, ParallelBridge, ParallelIterator};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeSet, HashSet};
 use std::fs::File;
@@ -179,6 +180,7 @@ pub fn compare_two_trees_amplified(collection: &TreeCollection) -> RFOutput {
 
 pub fn compare_one2many(collection: &TreeCollection) -> Vec<RFOutput> {
     return (1..(collection.ngenes()))
+        .into_par_iter()
         .map(|i| {
             compare_amplified(
                 &collection.taxon_set,
@@ -192,6 +194,7 @@ pub fn compare_one2many(collection: &TreeCollection) -> Vec<RFOutput> {
 pub fn compare_many2many(collection: &TreeCollection) -> Vec<RFOutput> {
     let k = collection.ngenes() / 2;
     return (0..k)
+        .into_par_iter()
         .map(|i| {
             compare_amplified(
                 &collection.taxon_set,
@@ -431,8 +434,11 @@ pub fn parse_newick(taxon_set: &mut TaxonSet, newick: &str) -> Tree {
     let mut n: usize = 0; // the current node
     let mut chars = newick.chars().fuse().peekable();
     while let Some(c) = chars.next() {
+        // println!("{}", c);
         if c == ';' {
             break;
+        } else if c == ' ' {
+            continue;
         } else if c == '(' {
             taxa.push(-1);
             childcount[n as usize] += 1;
@@ -458,6 +464,25 @@ pub fn parse_newick(taxon_set: &mut TaxonSet, newick: &str) -> Tree {
             firstchild.push(-1);
             nextsib.push(-1);
             n = taxa.len() - 1;
+        } else if c == '[' {
+            let mut cnt = 0usize;
+            loop {
+                match chars.next() {
+                    Some(']') => {
+                        if cnt == 0 {
+                            break;
+                        } else {
+                            cnt -= 1;
+                        }
+                    },
+                    Some('[') => {
+                        cnt += 1;
+                    },
+                    Some(_) | None => {
+                        
+                    }
+                }
+            }
         } else if c == ':' {
             let mut ls = "".to_string();
             loop {
@@ -486,6 +511,7 @@ pub fn parse_newick(taxon_set: &mut TaxonSet, newick: &str) -> Tree {
                 }
             }
             if childcount[n] == 0 {
+                // println!("{}", ts);
                 taxa[n] = taxon_set.request(ts) as i32;
             }
         }

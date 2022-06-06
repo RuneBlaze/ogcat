@@ -298,12 +298,12 @@ pub fn aln_mask(
                 pos += 1;
             }
         }
-        writer.write(&[b'>']).unwrap();
+        writer.write_all(b">").unwrap();
         writer.write(r.head()).unwrap();
-        writer.write(&[b'\n']).unwrap();
+        writer.write_all(b"\n").unwrap();
         buf.chunks(60).for_each(|chunk| {
             writer.write(chunk).unwrap();
-            writer.write(&[b'\n']).unwrap();
+            writer.write_all(b"\n").unwrap();
         });
     }
     MaskResult {
