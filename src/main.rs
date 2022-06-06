@@ -4,11 +4,11 @@ mod ogcat;
 use clap::{ArgEnum, Parser, Subcommand};
 use ogcat::TreeCollection;
 use serde::Serialize;
-use serde_json::json;
+
 use std::fmt::Display;
 use std::path::PathBuf;
 use tabled::{builder::Builder, Style};
-use tabled::{Table, Tabled};
+use tabled::{Table};
 
 use crate::ogcat::RFPrettyOutput;
 
@@ -173,7 +173,7 @@ fn execute_rf_allpairs(trees: &[String], format: Format) {
         files: if trees.len() == 1 {
             None
         } else {
-            Some(trees.iter().cloned().collect())
+            Some(trees.to_vec())
         },
         results: paired_results,
     };
@@ -287,7 +287,7 @@ fn execute_rf_multi(reference: &PathBuf, estimated: &PathBuf, format: Format) {
                 ])
                 .build()
                 .with(Style::modern());
-            println!("{}", table.to_string());
+            println!("{}", table);
         }
         Format::Json => {
             println!("{}", serde_json::to_string_pretty(&multiresult).unwrap());
@@ -315,12 +315,12 @@ fn main() {
             } else {
                 aln::aln_mask(&input, 0, percent, &output)
             };
-            println!("{}", Table::new([res]).with(Style::modern()).to_string());
+            println!("{}", Table::new([res]).with(Style::modern()));
         }
         SubCommand::AlnStats { input, pdis } => {
             let res = aln::aln_linear_stats(&input);
             let p_result = if pdis {
-                Some(aln::approx_pdis(&input, (res.alph).clone()).unwrap())
+                Some(aln::approx_pdis(&input, res.alph).unwrap())
             } else {
                 None
             };
@@ -347,7 +347,7 @@ fn main() {
                     format!("{:.4}", p_result.unwrap().max_pdis),
                 ])
                 .build();
-            println!("{}", table.with(Style::modern()).to_string());
+            println!("{}", table.with(Style::modern()));
         }
         SubCommand::RfAllpairs { trees } => {
             execute_rf_allpairs(&trees, args.format);

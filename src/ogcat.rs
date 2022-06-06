@@ -1,13 +1,13 @@
-use clap::ArgEnum;
+
 use rand::prelude::*;
-use rayon::iter::{IntoParallelIterator, ParallelBridge, ParallelIterator};
-use serde::{Deserialize, Serialize};
-use std::collections::{BTreeSet, HashSet};
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
+use serde::{Serialize};
+use std::collections::{HashSet};
 use std::fs::File;
 use std::io::{self, BufRead};
 use std::path::Path;
-use std::{borrow::Borrow, cmp::max, cmp::min, collections::HashMap};
-use tabled::{Table, Tabled};
+use std::{cmp::max, cmp::min, collections::HashMap};
+use tabled::{Tabled};
 
 #[derive(Debug)]
 pub struct TaxonSet {
@@ -28,18 +28,17 @@ where
 
 impl TaxonSet {
     pub fn request(&mut self, taxon_name: String) -> usize {
-        self.to_id
+        *self.to_id
             .entry(taxon_name.clone())
             .or_insert_with(|| {
                 self.names.push(taxon_name);
                 self.last += 1;
                 self.last - 1
             })
-            .clone()
     }
 
     pub fn retreive(&self, taxon_name: String) -> usize {
-        self.to_id.get(&taxon_name).unwrap().clone()
+        *self.to_id.get(&taxon_name).unwrap()
     }
 
     pub fn new() -> Self {
@@ -84,7 +83,7 @@ impl Tree {
     }
 
     pub fn is_root(&self, node: usize) -> bool {
-        return node == 0;
+        node == 0
     }
 
     pub fn xor_clades(&self, transl: &Vec<u64>, universe: u64) -> HashSet<u64> {
@@ -118,7 +117,7 @@ impl Tree {
                 bips.insert(min(clade, universe ^ clade));
             }
         }
-        return bips;
+        bips
     }
 }
 
@@ -135,20 +134,20 @@ pub fn compare_tree_pair(taxon_set: &TaxonSet, ref_tree: &Tree, est_tree: &Tree)
     let shared_bips = ref_bips.intersection(&est_bips).count();
     let fn_bips = ref_bips.len() - shared_bips;
     let fp_bips = est_bips.len() - shared_bips;
-    return RFOutput {
+    RFOutput {
         ntaxa: n,
         fp_edges: fp_bips,
         fn_edges: fn_bips,
         ref_edges: ref_bips.len(),
         est_edges: est_bips.len(),
-    };
+    }
 }
 
 pub fn compare_two_trees(collection: &TreeCollection) -> RFOutput {
     // we are assuming that the first one is reference, the second one is estimated
     let ref_tree = &collection.trees[0];
     let est_tree = &collection.trees[1];
-    return compare_tree_pair(&collection.taxon_set, ref_tree, est_tree);
+    compare_tree_pair(&collection.taxon_set, ref_tree, est_tree)
 }
 
 pub fn compare_amplified(taxon_set: &TaxonSet, ref_tree: &Tree, est_tree: &Tree) -> RFOutput {
@@ -163,23 +162,22 @@ pub fn compare_amplified(taxon_set: &TaxonSet, ref_tree: &Tree, est_tree: &Tree)
             prev_results.insert(result);
         }
     }
-    return prev_results
+    return *prev_results
         .iter()
         .max_by_key(|it| it.fn_edges + it.fp_edges)
-        .unwrap()
-        .clone();
+        .unwrap();
 }
 
 pub fn compare_two_trees_amplified(collection: &TreeCollection) -> RFOutput {
-    return compare_amplified(
+    compare_amplified(
         &collection.taxon_set,
         &collection.trees[0],
         &collection.trees[1],
-    );
+    )
 }
 
 pub fn compare_one2many(collection: &TreeCollection) -> Vec<RFOutput> {
-    return (1..(collection.ngenes()))
+    (1..(collection.ngenes()))
         .into_par_iter()
         .map(|i| {
             compare_amplified(
@@ -188,12 +186,12 @@ pub fn compare_one2many(collection: &TreeCollection) -> Vec<RFOutput> {
                 &collection.trees[i],
             )
         })
-        .collect();
+        .collect()
 }
 
 pub fn compare_many2many(collection: &TreeCollection) -> Vec<RFOutput> {
     let k = collection.ngenes() / 2;
-    return (0..k)
+    (0..k)
         .into_par_iter()
         .map(|i| {
             compare_amplified(
@@ -202,7 +200,7 @@ pub fn compare_many2many(collection: &TreeCollection) -> Vec<RFOutput> {
                 &collection.trees[k + i],
             )
         })
-        .collect();
+        .collect()
 }
 
 pub fn compare_allpairs(collection: &TreeCollection) -> Vec<RFOutput> {
@@ -216,7 +214,7 @@ pub fn compare_allpairs(collection: &TreeCollection) -> Vec<RFOutput> {
             ));
         }
     }
-    return res;
+    res
 }
 
 #[derive(Debug)]
@@ -238,7 +236,7 @@ impl TreeCollection {
         P: AsRef<Path> + std::fmt::Display,
     {
         if filenames.is_empty() {
-            return Err("No files provided".to_string());
+            Err("No files provided".to_string())
         } else {
             let mut tree_col = TreeCollection::from_newick(&filenames[0])?;
             for i in 1..filenames.len() {
@@ -271,9 +269,9 @@ impl TreeCollection {
                     return Err("Error reading file");
                 }
             }
-            return Ok(TreeCollection { taxon_set, trees });
+            Ok(TreeCollection { taxon_set, trees })
         } else {
-            return Err("Could not read file");
+            Err("Could not read file")
         }
     }
 
@@ -300,9 +298,9 @@ impl TreeCollection {
                 }
                 lines_read += 1;
             }
-            return Ok(lines_read);
+            Ok(lines_read)
         } else {
-            return Err("Could not read file");
+            Err("Could not read file")
         }
     }
 }
@@ -326,7 +324,7 @@ pub struct PostorderEdgeIterator<'a> {
 impl<'a> ChildrenIterator<'a> {
     pub fn new(tree: &'a Tree, node: usize) -> Self {
         ChildrenIterator {
-            tree: tree,
+            tree,
             current: tree.firstchild[node],
         }
     }
@@ -523,7 +521,8 @@ pub fn parse_newick(taxon_set: &mut TaxonSet, newick: &str) -> Tree {
         // let c2 = nextsib[c] as usize;
         fake_root = true;
     }
-    let tree = Tree {
+    
+    Tree {
         taxa,
         parents,
         // support,
@@ -532,6 +531,5 @@ pub fn parse_newick(taxon_set: &mut TaxonSet, newick: &str) -> Tree {
         nextsib,
         childcount,
         fake_root,
-    };
-    return tree;
+    }
 }

@@ -1,10 +1,10 @@
-use itertools::{iproduct, Itertools};
+use itertools::{Itertools};
 use rand::{seq::*, Rng};
 use rayon::prelude::*;
 use seq_io::fasta::Reader;
 
 // use std::fmt::Display;
-use seq_io::{fasta::OwnedRecord, prelude::*};
+use seq_io::{prelude::*};
 use std::fmt::Display;
 use std::io::BufWriter;
 // needed to import necessary traits
@@ -13,7 +13,7 @@ use std::{
     io::Write,
     path::{Path, PathBuf},
 };
-use tabled::{Table, Tabled};
+use tabled::{Tabled};
 
 const AA_WILDCARD: u8 = b'X';
 const NC_WILDCARD: u8 = b'N';
@@ -49,9 +49,9 @@ pub fn p_distance(lhs: &[u8], rhs: &[u8], ambiguous: u8) -> Option<(usize, usize
         };
     });
     if tt == 0 {
-        return None;
+        None
     } else {
-        return Some((diff, tt, diff as f64 / tt as f64));
+        Some((diff, tt, diff as f64 / tt as f64))
     }
 }
 
@@ -66,18 +66,18 @@ pub fn all_pairs_p_distance(matrix: &[Vec<u8>], alph: Alphabet) -> Option<(f64, 
         .combinations(2)
         .par_bridge()
         .flat_map(|v| {
-            return p_distance(&matrix[v[0]], &matrix[v[1]], wildcard);
+            p_distance(&matrix[v[0]], &matrix[v[1]], wildcard)
         })
         .collect();
 
     if p_dis.is_empty() {
-        return None;
+        None
     } else {
         let top = p_dis.iter().map(|i| i.0).sum::<usize>();
         let bottom = p_dis.iter().map(|i| i.1).sum::<usize>();
         let avg = top as f64 / bottom as f64;
         let max = p_dis.iter().fold(0f64, |acc, x| acc.max(x.2));
-        return Some((avg, max));
+        Some((avg, max))
     }
 }
 
@@ -116,7 +116,7 @@ where
             }
         }
         gap_cells += local_gaps;
-        if width <= 0 {
+        if width == 0 {
             width = record_width;
         } else {
             assert_eq!(width, record_width);
@@ -128,8 +128,8 @@ where
         alph: guesser.alph(),
         total_cells: tt_cells as usize,
         gap_cells: gap_cells as usize,
-        width: width,
-        rows: rows,
+        width,
+        rows,
         avg_sequence_length: seq_lengths.iter().sum::<u64>() as f64 / seq_lengths.len() as f64,
     }
 }
@@ -214,7 +214,7 @@ pub fn approx_pdis(filename: &PathBuf, alph: Alphabet) -> Result<PdisResult, &'s
         });
     }
     if avg_pdis_samples.is_empty() {
-        return Err("No valid samples obtained");
+        Err("No valid samples obtained")
     } else {
         // compute the median of the avg pdis
         // the max of the max pdis
@@ -224,7 +224,7 @@ pub fn approx_pdis(filename: &PathBuf, alph: Alphabet) -> Result<PdisResult, &'s
             .iter()
             .copied()
             .fold(f64::NEG_INFINITY, f64::max);
-        return Ok(PdisResult { avg_pdis, max_pdis });
+        Ok(PdisResult { avg_pdis, max_pdis })
     }
 }
 
@@ -284,7 +284,7 @@ pub fn aln_mask(
         .collect();
 
     let mut r2 = Reader::from_path(filename).unwrap();
-    let mut f = File::create(outfile).unwrap();
+    let f = File::create(outfile).unwrap();
     let mut writer = BufWriter::new(f);
     while let Some(result) = r2.next() {
         let mut pos = 0usize;
@@ -299,10 +299,10 @@ pub fn aln_mask(
             }
         }
         writer.write_all(b">").unwrap();
-        writer.write(r.head()).unwrap();
+        writer.write_all(r.head()).unwrap();
         writer.write_all(b"\n").unwrap();
         buf.chunks(60).for_each(|chunk| {
-            writer.write(chunk).unwrap();
+            writer.write_all(chunk).unwrap();
             writer.write_all(b"\n").unwrap();
         });
     }
