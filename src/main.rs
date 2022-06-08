@@ -1,6 +1,7 @@
 mod aln;
 mod ogcat;
 
+use crate::ogcat::RFPrettyOutput;
 use clap::{ArgEnum, Parser, Subcommand};
 use ogcat::TreeCollection;
 use serde::Serialize;
@@ -8,7 +9,6 @@ use std::fmt::Display;
 use std::path::PathBuf;
 use tabled::Table;
 use tabled::{builder::Builder, Style};
-use crate::ogcat::RFPrettyOutput;
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about)]
