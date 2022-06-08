@@ -1,18 +1,17 @@
-use autocompress::iothread::ThreadReader;
 use itertools::Itertools;
-use rand::distributions::uniform::SampleBorrow;
+
 use rand::{seq::*, Rng};
 use rayon::prelude::*;
 // use seq_io::core::BufReader;
-use seq_io::fasta::{LineStore, OwnedRecord, Reader, RecordsIter, RefRecord};
+use seq_io::fasta::Reader;
 // use lz4::{Decoder, EncoderBuilder, Encoder};
 
-use seq_io::policy::{BufPolicy, StdPolicy};
+use seq_io::policy::BufPolicy;
 // use std::fmt::Display;
-use autocompress::{create, iothread::IoThread, open, CompressionLevel, Decoder, Encoder};
-use seq_io::{prelude::*, Position, PositionStore};
+use autocompress::{create, iothread::IoThread, CompressionLevel, Encoder};
+use seq_io::{prelude::*, PositionStore};
 use std::fmt::Display;
-use std::io::{BufReader, BufWriter, Read};
+use std::io::{BufWriter, Read};
 // needed to import necessary traits
 use std::{
     fs::File,
@@ -40,41 +39,41 @@ impl Display for Alphabet {
     }
 }
 
-pub trait AlnReader<S>
-where
-    S: PositionStore,
-{
-    fn next(
-        &mut self,
-    ) -> std::option::Option<Result<seq_io::fasta::RefRecord<'_, S>, seq_io::fasta::Error>>;
-    fn peek_size(&mut self) -> usize;
-    // fn records(&mut self) -> RecordsIter<'_, R, P, S>;
-}
+// pub trait AlnReader<S>
+// where
+//     S: PositionStore,
+// {
+//     fn next(
+//         &mut self,
+//     ) -> std::option::Option<Result<seq_io::fasta::RefRecord<'_, S>, seq_io::fasta::Error>>;
+//     fn peek_size(&mut self) -> usize;
+//     // fn records(&mut self) -> RecordsIter<'_, R, P, S>;
+// }
 
-impl<R, P, S> AlnReader<S> for Reader<R, P, S>
-where
-    R: Read,
-    P: BufPolicy,
-    S: PositionStore,
-{
-    fn next(
-        &mut self,
-    ) -> std::option::Option<Result<seq_io::fasta::RefRecord<'_, S>, seq_io::fasta::Error>> {
-        return self.next();
-    }
+// impl<R, P, S> AlnReader<S> for Reader<R, P, S>
+// where
+//     R: Read,
+//     P: BufPolicy,
+//     S: PositionStore,
+// {
+//     fn next(
+//         &mut self,
+//     ) -> std::option::Option<Result<seq_io::fasta::RefRecord<'_, S>, seq_io::fasta::Error>> {
+//         return self.next();
+//     }
 
-    fn peek_size(&mut self) -> usize {
-        return self
-            .records()
-            .peekable()
-            .peek()
-            .unwrap()
-            .as_ref()
-            .unwrap()
-            .full_seq()
-            .len();
-    }
-}
+//     fn peek_size(&mut self) -> usize {
+//         return self
+//             .records()
+//             .peekable()
+//             .peek()
+//             .unwrap()
+//             .as_ref()
+//             .unwrap()
+//             .full_seq()
+//             .len();
+//     }
+// }
 
 pub fn p_distance(lhs: &[u8], rhs: &[u8], ambiguous: u8) -> Option<(usize, usize, f64)> {
     let mut tt = 0;
@@ -141,7 +140,9 @@ where
     let mut width = 0;
     let mut rows = 0;
     let mut seq_lengths: Vec<u64> = vec![];
-    let mut reader = Reader::from_path(filename).unwrap();
+    // let mut reader = Reader::from_path(filename).unwrap();
+    let thread_pool = IoThread::new(2);
+    let mut reader = Reader::new(thread_pool.open(filename).unwrap());
     let mut guesser = AlphabetGuesser::new();
     while let Some(result) = reader.next() {
         let mut record_width = 0;
@@ -225,7 +226,9 @@ pub struct PdisResult {
 
 pub fn approx_pdis(filename: &PathBuf, alph: Alphabet) -> Result<PdisResult, &'static str> {
     let mut rng = rand::thread_rng();
-    let mut reader = Reader::from_path(filename).unwrap();
+    let thread_pool = IoThread::new(2);
+    let mut reader = Reader::new(thread_pool.open(filename).unwrap());
+    // let mut reader = Reader::from_path(filename).unwrap();
     let mut i = 0;
     let s = 9000;
     let mut records: Vec<Vec<u8>> = vec![];
@@ -275,17 +278,6 @@ pub fn approx_pdis(filename: &PathBuf, alph: Alphabet) -> Result<PdisResult, &'s
     }
 }
 
-// pub fn retrieve_aln_reader<'a>(filename : &PathBuf, thread_pool : &'a IoThread) ->  {
-//     let x = thread_pool.open(filename).unwrap();
-//     let y = Reader::new(x);
-//     return y;
-// }
-
-pub fn retrieve_writer(filename: &PathBuf) -> BufWriter<Encoder<File>> {
-    let x = create(filename, CompressionLevel::Default).unwrap();
-    return BufWriter::new(x);
-}
-
 pub fn aln_where(
     filename: &PathBuf,
     length_lb: Option<usize>,
@@ -294,7 +286,6 @@ pub fn aln_where(
 ) -> WhereResult {
     let thread_pool = IoThread::new(2);
     let mut reader = Reader::new(thread_pool.open(filename).unwrap());
-    // let mut reader = retrieve_aln_reader(filename);
     let mut rows = 0usize;
     let mut matched = 0usize;
     let mut writer = thread_pool
