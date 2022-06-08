@@ -1,4 +1,3 @@
-
 use rand::prelude::*;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use serde::{Serialize};

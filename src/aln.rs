@@ -1,14 +1,16 @@
 use itertools::{Itertools};
+use rand::distributions::uniform::SampleBorrow;
 use rand::{seq::*, Rng};
 use rayon::prelude::*;
 // use seq_io::core::BufReader;
-use seq_io::fasta::Reader;
-use lz4::{Decoder, EncoderBuilder};
+use seq_io::fasta::{Reader, RefRecord, LineStore, RecordsIter, OwnedRecord};
+use lz4::{Decoder, EncoderBuilder, Encoder};
 
+use seq_io::policy::{BufPolicy, StdPolicy};
 // use std::fmt::Display;
-use seq_io::prelude::*;
+use seq_io::{prelude::*, PositionStore, Position};
 use std::fmt::Display;
-use std::io::{BufWriter, BufReader};
+use std::io::{BufWriter, BufReader, Read};
 // needed to import necessary traits
 use std::{
     fs::File,
@@ -32,6 +34,22 @@ impl Display for Alphabet {
             Alphabet::AminoAcid => write!(f, "AminoAcid"),
             Alphabet::Nucleotide => write!(f, "Nucleotide"),
         }
+    }
+}
+
+pub trait AlnReader<S> where S : PositionStore {
+    fn next(&mut self) -> std::option::Option<Result<seq_io::fasta::RefRecord<'_, S>, seq_io::fasta::Error>>;
+    fn peek_size(&mut self) -> usize;
+    // fn records(&mut self) -> RecordsIter<'_, R, P, S>;
+}
+
+impl<R, P, S> AlnReader<S> for Reader<R, P, S> where R : Read, P : BufPolicy, S : PositionStore {
+    fn next(&mut self) -> std::option::Option<Result<seq_io::fasta::RefRecord<'_, S>, seq_io::fasta::Error>> {
+        return self.next();
+    }
+
+    fn peek_size(&mut self) -> usize {
+        return self.records().peekable().peek().unwrap().as_ref().unwrap().full_seq().len();
     }
 }
 
@@ -236,22 +254,40 @@ pub fn approx_pdis(filename: &PathBuf, alph: Alphabet) -> Result<PdisResult, &'s
     }
 }
 
+pub fn retrieve_aln_reader(filename : &PathBuf) -> Box<dyn AlnReader<LineStore>> {
+    let x = if let Some("lz4") = filename.extension().and_then(|e| e.to_str()) {
+        let decoder = Decoder::new(File::open(filename).unwrap()).unwrap();
+        Box::new(Reader::new(decoder))
+    } else {
+        Box::new(Reader::from_path(filename).unwrap()) as Box<dyn AlnReader<LineStore>>
+    };
+    return x;
+}
+
+pub fn retrieve_writer(filename : &PathBuf) -> Box<dyn Write> {
+    let f = File::create(filename).unwrap();
+    let mut writer = BufWriter::new(f);
+    let x = if let Some("lz4") = filename.extension().and_then(|e| e.to_str()) {
+        Box::new(EncoderBuilder::new().level(1).build(writer).unwrap())
+    } else {
+        Box::new(writer) as Box<dyn Write>
+    };
+    return x;
+}
+
 pub fn aln_where(
     filename : &PathBuf,
     length_lb : Option<usize>,
     length_ub : Option<usize>,
     outfile : &PathBuf,
 ) -> WhereResult {
-    let mut reader = if let Some("lz4") = filename.extension().and_then(|e| e.to_str()) {
-        let decoder = Decoder::new(File::open(filename).unwrap()).unwrap();
-        Reader::new(decoder)
-    } else {
-        panic!("Unsupported file extension");
-    };
-    let f = File::create(outfile).unwrap();
+    let mut reader = retrieve_aln_reader(filename);
     let mut rows = 0usize;
     let mut matched = 0usize;
-    let mut writer = BufWriter::new(f);
+    // let f = File::create(outfile).unwrap();
+    // let mut writer = BufWriter::new(f);
+    // let encoder = EncoderBuilder::new().level(1).build(writer).unwrap();
+    let mut writer = retrieve_writer(outfile);
     while let Some(result) = reader.next() {
         let mut nongaps = 0usize;
         let mut buf: Vec<u8> = vec![];
@@ -294,11 +330,11 @@ pub fn aln_mask(
     percent_gappy: f64,
     outfile: &PathBuf,
 ) -> MaskResult {
-    let mut reader = Reader::from_path(filename.clone()).unwrap();
-    let mut it = reader.records().peekable();
-    let first_rec = it.peek().expect("No records in file");
-    let r = first_rec.as_ref().unwrap();
-    let width = r.full_seq().len();
+    let mut reader = retrieve_aln_reader(filename);
+    // let mut it = reader.records().peekable();
+    // let r = reader.peek();
+    // let r = first_rec.as_ref().unwrap();
+    let width = reader.peek_size();
     let mut height = 0usize;
     let mut gaps = vec![0u64; width];
     let mut n_char = vec![0u64; width];
@@ -338,9 +374,9 @@ pub fn aln_mask(
         })
         .collect();
 
-    let mut r2 = Reader::from_path(filename).unwrap();
-    let f = File::create(outfile).unwrap();
-    let mut writer = BufWriter::new(f);
+    let mut r2 = retrieve_aln_reader(&filename);
+    // let f = File::create(outfile).unwrap();
+    let mut writer = retrieve_writer(outfile);
     while let Some(result) = r2.next() {
         let mut pos = 0usize;
         let mut buf: Vec<u8> = vec![];
