@@ -1,12 +1,14 @@
 use itertools::{Itertools};
 use rand::{seq::*, Rng};
 use rayon::prelude::*;
+// use seq_io::core::BufReader;
 use seq_io::fasta::Reader;
+use lz4::{Decoder, EncoderBuilder};
 
 // use std::fmt::Display;
-use seq_io::{prelude::*};
+use seq_io::prelude::*;
 use std::fmt::Display;
-use std::io::BufWriter;
+use std::io::{BufWriter, BufReader};
 // needed to import necessary traits
 use std::{
     fs::File,
@@ -170,6 +172,12 @@ pub struct MaskResult {
     pub total_rows: usize,
 }
 
+#[derive(Debug, Tabled)]
+pub struct WhereResult {
+    pub total_rows: usize,
+    pub matched_rows: usize,
+}
+
 #[derive(Debug, Tabled, Clone)]
 pub struct PdisResult {
     pub avg_pdis: f64,
@@ -228,10 +236,57 @@ pub fn approx_pdis(filename: &PathBuf, alph: Alphabet) -> Result<PdisResult, &'s
     }
 }
 
-// pub fn aln_sample(
-//     filename : &PathBuf,
-//     sequences
-// )
+pub fn aln_where(
+    filename : &PathBuf,
+    length_lb : Option<usize>,
+    length_ub : Option<usize>,
+    outfile : &PathBuf,
+) -> WhereResult {
+    let mut reader = if let Some("lz4") = filename.extension().and_then(|e| e.to_str()) {
+        let decoder = Decoder::new(File::open(filename).unwrap()).unwrap();
+        Reader::new(decoder)
+    } else {
+        panic!("Unsupported file extension");
+    };
+    let f = File::create(outfile).unwrap();
+    let mut rows = 0usize;
+    let mut matched = 0usize;
+    let mut writer = BufWriter::new(f);
+    while let Some(result) = reader.next() {
+        let mut nongaps = 0usize;
+        let mut buf: Vec<u8> = vec![];
+        let r = result.unwrap();
+        rows += 1;
+        for l in r.seq_lines() {
+            for c in l {
+                buf.push(*c);
+                if *c != b'-' {
+                    nongaps += 1;
+                }
+            }
+        }
+        let a = length_lb.map(|x| nongaps >= x);
+        let b = length_ub.map(|x| nongaps <= x);
+        match (a, b) {
+            (Some(false), _) => continue,
+            (_, Some(false)) => continue,
+            (_, _) => {
+                writer.write_all(b">").unwrap();
+                writer.write_all(r.head()).unwrap();
+                writer.write_all(b"\n").unwrap();
+                buf.chunks(60).for_each(|chunk| {
+                    writer.write_all(chunk).unwrap();
+                    writer.write_all(b"\n").unwrap();
+                });
+                matched += 1;
+            }
+        }
+    };
+    WhereResult {
+        total_rows: rows,
+        matched_rows: matched,
+    }
+}
 
 pub fn aln_mask(
     filename: &PathBuf,

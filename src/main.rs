@@ -65,6 +65,17 @@ enum SubCommand {
         pdis: bool,
     },
 
+    AlnWhere {
+        #[clap()]
+        input: PathBuf,
+        #[clap(short, long)]
+        output: PathBuf,
+        #[clap(long = "len_lb")]
+        length_lb: Option<usize>,
+        #[clap(long = "len_ub")]
+        length_ub: Option<usize>,
+    },
+
     Mask {
         #[clap()]
         input: PathBuf,
@@ -357,6 +368,10 @@ fn main() {
             estimated,
         } => {
             execute_rf_multi(&reference, &estimated, args.format);
+        }
+        SubCommand::AlnWhere { input, output, length_lb, length_ub } => {
+            let res = aln::aln_where(&input, length_lb, length_ub, &output);
+            println!("{}", Table::new([res]).with(Style::modern()));
         }
         _ => {
             panic!("Unsupported subcommand");
