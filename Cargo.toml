@@ -19,3 +19,6 @@ lz4 = "1.23.1"
 # thread_io = "0.3.0"
 autocompress = { version = "0.2.2", features = ["lz4", "thread", "zstd"], default-features = false }
 # statistical = "1.0.0"
+
+[profile.release]
+lto = "thin"

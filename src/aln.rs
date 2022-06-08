@@ -139,7 +139,7 @@ where
     let mut width = 0;
     let mut rows = 0;
     let mut seq_lengths: Vec<u64> = vec![];
-    let thread_pool = IoThread::new(2);
+    let thread_pool = IoThread::new(3);
     let mut reader = Reader::new(thread_pool.open(filename).unwrap());
     let mut guesser = AlphabetGuesser::new();
     while let Some(result) = reader.next() {
@@ -186,7 +186,7 @@ impl AlphabetGuesser {
     }
 
     pub fn see(&mut self, c: &u8) {
-        match c {
+        match c.to_ascii_uppercase() {
             b'A' | b'C' | b'T' | b'G' | b'-' | b'N' => {}
             _ => {
                 self.seen_aa_char = true;
@@ -286,7 +286,7 @@ pub fn aln_where(
     let mut reader = Reader::new(thread_pool.open(filename).unwrap());
     let mut rows = 0usize;
     let mut matched = 0usize;
-    let mut writer = create(outfile, CompressionLevel::Default).unwrap();
+    let mut writer = thread_pool.create(outfile, CompressionLevel::Default).unwrap();
     // thread_pool
     //     .create(outfile, CompressionLevel::Default)
     //     .unwrap();
@@ -332,7 +332,7 @@ pub fn aln_mask(
     percent_gappy: f64,
     outfile: &PathBuf,
 ) -> MaskResult {
-    let thread_pool = IoThread::new(2);
+    let thread_pool = IoThread::new(3);
     let mut reader = Reader::new(thread_pool.open(filename).unwrap());
     let mut it = reader.records().peekable();
     let r = it.peek();
@@ -346,6 +346,9 @@ pub fn aln_mask(
         let mut pos = 0usize;
         for l in result.unwrap().seq_lines() {
             for c in l {
+                if c.is_ascii_lowercase() {
+                    continue;
+                }
                 guesser.see(c);
                 match c {
                     b'-' => {
@@ -377,14 +380,14 @@ pub fn aln_mask(
         .collect();
 
     let mut r2 = Reader::new(thread_pool.open(filename).unwrap());
-    let mut writer = create(outfile, CompressionLevel::Default).unwrap();
+    let mut writer = thread_pool.create(outfile, CompressionLevel::Default).unwrap();
     while let Some(result) = r2.next() {
         let mut pos = 0usize;
         let mut buf: Vec<u8> = vec![];
         let r = result.unwrap();
         for l in r.seq_lines() {
             for c in l {
-                if !remove[pos] {
+                if !remove[pos] && !c.is_ascii_lowercase() {
                     buf.push(*c);
                 }
                 pos += 1;
