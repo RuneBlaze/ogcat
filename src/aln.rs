@@ -7,8 +7,7 @@ use seq_io::fasta::Reader;
 // use lz4::{Decoder, EncoderBuilder, Encoder};
 
 use seq_io::policy::BufPolicy;
-// use std::fmt::Display;
-use autocompress::{create, iothread::IoThread, CompressionLevel, Encoder};
+use autocompress::{create, iothread::IoThread, CompressionLevel, Encoder, suggest_format_from_path};
 use seq_io::{prelude::*, PositionStore};
 use std::fmt::Display;
 use std::io::{BufWriter, Read};
@@ -140,7 +139,6 @@ where
     let mut width = 0;
     let mut rows = 0;
     let mut seq_lengths: Vec<u64> = vec![];
-    // let mut reader = Reader::from_path(filename).unwrap();
     let thread_pool = IoThread::new(2);
     let mut reader = Reader::new(thread_pool.open(filename).unwrap());
     let mut guesser = AlphabetGuesser::new();
@@ -288,9 +286,10 @@ pub fn aln_where(
     let mut reader = Reader::new(thread_pool.open(filename).unwrap());
     let mut rows = 0usize;
     let mut matched = 0usize;
-    let mut writer = thread_pool
-        .create(outfile, CompressionLevel::Default)
-        .unwrap();
+    let mut writer = create(outfile, CompressionLevel::Default).unwrap();
+    // thread_pool
+    //     .create(outfile, CompressionLevel::Default)
+    //     .unwrap();
     while let Some(result) = reader.next() {
         let mut nongaps = 0usize;
         let mut buf: Vec<u8> = vec![];
@@ -378,9 +377,7 @@ pub fn aln_mask(
         .collect();
 
     let mut r2 = Reader::new(thread_pool.open(filename).unwrap());
-    let mut writer = thread_pool
-        .create(outfile, CompressionLevel::Default)
-        .unwrap();
+    let mut writer = create(outfile, CompressionLevel::Default).unwrap();
     while let Some(result) = r2.next() {
         let mut pos = 0usize;
         let mut buf: Vec<u8> = vec![];

@@ -351,17 +351,6 @@ impl<'a> Iterator for ChildrenIterator<'a> {
     }
 }
 
-// impl<'a> Iterator for PostorderEdgeIterator<'a> {
-//     type Item = usize;
-
-//     fn next(&mut self) -> Option<Self::Item> {
-//         let candidate = self.s2.pop();
-//         while let Some(node) = candidate {
-
-//         }
-//     }
-// }
-
 impl PostorderIterator {
     pub fn new(tree: &Tree) -> Self {
         let mut s1 = Vec::new();
