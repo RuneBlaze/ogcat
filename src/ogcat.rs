@@ -1,12 +1,12 @@
 use rand::prelude::*;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
-use serde::{Serialize};
-use std::collections::{HashSet};
+use serde::Serialize;
+use std::collections::HashSet;
 use std::fs::File;
 use std::io::{self, BufRead};
 use std::path::Path;
 use std::{cmp::max, cmp::min, collections::HashMap};
-use tabled::{Tabled};
+use tabled::Tabled;
 
 #[derive(Debug)]
 pub struct TaxonSet {
@@ -27,13 +27,11 @@ where
 
 impl TaxonSet {
     pub fn request(&mut self, taxon_name: String) -> usize {
-        *self.to_id
-            .entry(taxon_name.clone())
-            .or_insert_with(|| {
-                self.names.push(taxon_name);
-                self.last += 1;
-                self.last - 1
-            })
+        *self.to_id.entry(taxon_name.clone()).or_insert_with(|| {
+            self.names.push(taxon_name);
+            self.last += 1;
+            self.last - 1
+        })
     }
 
     pub fn retreive(&self, taxon_name: String) -> usize {
@@ -471,13 +469,11 @@ pub fn parse_newick(taxon_set: &mut TaxonSet, newick: &str) -> Tree {
                         } else {
                             cnt -= 1;
                         }
-                    },
+                    }
                     Some('[') => {
                         cnt += 1;
-                    },
-                    Some(_) | None => {
-                        
                     }
+                    Some(_) | None => {}
                 }
             }
         } else if c == ':' {
@@ -520,7 +516,7 @@ pub fn parse_newick(taxon_set: &mut TaxonSet, newick: &str) -> Tree {
         // let c2 = nextsib[c] as usize;
         fake_root = true;
     }
-    
+
     Tree {
         taxa,
         parents,

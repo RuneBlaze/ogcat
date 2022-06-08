@@ -7,8 +7,8 @@ use serde::Serialize;
 
 use std::fmt::Display;
 use std::path::PathBuf;
+use tabled::Table;
 use tabled::{builder::Builder, Style};
-use tabled::{Table};
 
 use crate::ogcat::RFPrettyOutput;
 
@@ -369,7 +369,12 @@ fn main() {
         } => {
             execute_rf_multi(&reference, &estimated, args.format);
         }
-        SubCommand::AlnWhere { input, output, length_lb, length_ub } => {
+        SubCommand::AlnWhere {
+            input,
+            output,
+            length_lb,
+            length_ub,
+        } => {
             let res = aln::aln_where(&input, length_lb, length_ub, &output);
             println!("{}", Table::new([res]).with(Style::modern()));
         }
