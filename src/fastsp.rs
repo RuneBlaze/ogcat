@@ -52,7 +52,7 @@ pub fn calc_fpfn(reference: &PathBuf, estimated: &PathBuf) -> SpResult {
         .unwrap()
         .full_seq()
         .iter()
-        .filter(|it| !it.is_ascii_lowercase())
+        // .filter(|it| !it.is_ascii_lowercase())
         .count(); // I am pretty sure this is a horrible idea...
     drop(it);
     est_reader = Reader::new(thread_pool.open(estimated).unwrap());
@@ -108,7 +108,7 @@ pub fn calc_fpfn(reference: &PathBuf, estimated: &PathBuf) -> SpResult {
         .unwrap()
         .full_seq()
         .iter()
-        .filter(|it| !it.is_ascii_lowercase())
+        // .filter(|it| !it.is_ascii_lowercase())
         .count(); // this is horrible
     ref_reader = Reader::new(thread_pool.open(reference).unwrap());
     let mut columns: Vec<Vec<(u32, u32)>> = vec![vec![]; ref_width]; // columns[i] contains the N(i, j) char
