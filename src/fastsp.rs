@@ -119,8 +119,8 @@ pub fn calc_fpfn(reference: &PathBuf, estimated: &PathBuf, ignore_case : bool) -
     let mut columns = vec![AHashMap::new(); ref_width]; // columns[i] contains the N(i, j) char
     let mut ref_gaps = vec![0u32; ref_width];
     let mut ref_rows = 0u32;
-    let mut ref_has_upper = vec![false; width];
-    let mut ref_num_lower = vec![0u32; width];
+    let mut ref_has_upper = vec![false; ref_width];
+    let mut ref_num_lower = vec![0u32; ref_width];
     while let Some(result) = ref_reader.next() {
         let lined_seqs = result.unwrap();
         let name = String::from_utf8(lined_seqs.head().iter().copied().collect_vec()).unwrap();
