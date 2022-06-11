@@ -37,6 +37,7 @@ enum Approx {
 
 #[derive(Subcommand, Debug)]
 enum SubCommand {
+    /// Computes the RF and related rates of two trees
     Rf {
         #[clap(short, long = "ref")]
         reference: PathBuf,
@@ -46,6 +47,7 @@ enum SubCommand {
         fast: bool,
     },
 
+    /// Computes pairwise (one-to-many, many-pairs) RF rates
     RfMulti {
         #[clap(short, long = "ref")]
         reference: PathBuf,
@@ -53,23 +55,32 @@ enum SubCommand {
         estimated: PathBuf,
     },
 
+    /// Computes all pairs RF rates from a collection of trees
     RfAllpairs {
         #[clap(short, long = "trees", multiple_values = true)]
         trees: Vec<String>,
     },
 
+    /// Statistics about a Newick unrooted tree (# taxa, degree of resolution, etc.)
     TreeStats {
         #[clap()]
         input: PathBuf,
     },
-
+    
+    /// Computes the sum-of-pairs error of two alignments a la FastSP.
     Sp {
+        /// Path to reference alignment in FASTA format
         #[clap(short, long = "ref")]
         reference: PathBuf,
+        /// Path to estimated alignment in FASTA format
         #[clap(short, long = "est")]
         estimated: PathBuf,
+        /// Treats lower-case letters NOT as insertion columns
+        #[clap(long)]
+        ignore_case: bool,
     },
-
+    
+    /// Statistics about a FASTA alignment (gap ratio, p-distance, etc.)
     AlnStats {
         #[clap()]
         input: PathBuf,
@@ -78,6 +89,7 @@ enum SubCommand {
         pdis: bool,
     },
 
+    /// Filters an alignment record-wise
     AlnWhere {
         #[clap()]
         input: PathBuf,
@@ -89,6 +101,7 @@ enum SubCommand {
         length_ub: Option<usize>,
     },
 
+    /// Masks gappy sites in an alignment
     Mask {
         #[clap()]
         input: PathBuf,
@@ -403,8 +416,12 @@ fn main() {
                 }
             }
         }
-        SubCommand::Sp { reference, estimated } => {
-            let fastsp_result = fastsp::calc_fpfn(&reference, &estimated);
+        SubCommand::Sp {
+            reference,
+            estimated,
+            ignore_case,
+        } => {
+            let fastsp_result = fastsp::calc_fpfn(&reference, &estimated, ignore_case);
             match args.format {
                 Format::Human => {
                     println!("{}", Table::new(&[fastsp_result]).with(Style::modern()));
