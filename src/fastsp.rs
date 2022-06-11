@@ -138,8 +138,11 @@ pub fn calc_fpfn(reference: &PathBuf, estimated: &PathBuf, ignore_case : bool) -
                     } else {
                         // actual letter. Put it in the column
                         ref_has_upper[x] = true;
-                        let entry = columns[x].entry(s[i][j]).or_insert(0);
-                        *entry += 1;
+                        let color = s[i][j];
+                        if color != MISSING_POS {
+                            let entry = columns[x].entry(color).or_insert(0);
+                            *entry += 1;
+                        }
                     };
                     j += 1;
                 } else {
