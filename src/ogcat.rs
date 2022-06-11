@@ -61,6 +61,7 @@ pub struct Tree {
     pub nextsib: Vec<i32>,
     pub childcount: Vec<u32>,
     pub fake_root: bool,
+    pub ntaxa: usize,
 }
 
 impl Tree {
@@ -81,6 +82,10 @@ impl Tree {
 
     pub fn is_root(&self, node: usize) -> bool {
         node == 0
+    }
+
+    pub fn num_nodes(&self) -> usize {
+        return self.taxa.len() - if self.fake_root { 1 } else { 0 };
     }
 
     pub fn xor_clades(&self, transl: &Vec<u64>, universe: u64) -> HashSet<u64> {
@@ -414,6 +419,7 @@ pub fn parse_newick(taxon_set: &mut TaxonSet, newick: &str) -> Tree {
     let mut childcount: Vec<u32> = vec![0];
     let mut firstchild: Vec<i32> = vec![-1];
     let mut nextsib: Vec<i32> = vec![-1];
+    let mut ntaxa: usize = 0;
     // we just reuse TreeSwift's logic
     let mut n: usize = 0; // the current node
     let mut chars = newick.chars().fuse().peekable();
@@ -495,6 +501,7 @@ pub fn parse_newick(taxon_set: &mut TaxonSet, newick: &str) -> Tree {
             if childcount[n] == 0 {
                 // println!("{}", ts);
                 taxa[n] = taxon_set.request(ts) as i32;
+                ntaxa += 1;
             }
         }
     }
@@ -515,5 +522,6 @@ pub fn parse_newick(taxon_set: &mut TaxonSet, newick: &str) -> Tree {
         nextsib,
         childcount,
         fake_root,
+        ntaxa,
     }
 }

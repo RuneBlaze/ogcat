@@ -2,12 +2,12 @@ use itertools::Itertools;
 
 use rand::{seq::*, Rng};
 use rayon::prelude::*;
-// use seq_io::core::BufReader;
 use seq_io::fasta::Reader;
-// use lz4::{Decoder, EncoderBuilder, Encoder};
 
+use autocompress::{
+    create, iothread::IoThread, suggest_format_from_path, CompressionLevel, Encoder,
+};
 use seq_io::policy::BufPolicy;
-use autocompress::{create, iothread::IoThread, CompressionLevel, Encoder, suggest_format_from_path};
 use seq_io::{prelude::*, PositionStore};
 use std::fmt::Display;
 use std::io::{BufWriter, Read};
@@ -226,7 +226,6 @@ pub fn approx_pdis(filename: &PathBuf, alph: Alphabet) -> Result<PdisResult, &'s
     let mut rng = rand::thread_rng();
     let thread_pool = IoThread::new(2);
     let mut reader = Reader::new(thread_pool.open(filename).unwrap());
-    // let mut reader = Reader::from_path(filename).unwrap();
     let mut i = 0;
     let s = 9000;
     let mut records: Vec<Vec<u8>> = vec![];
@@ -286,7 +285,9 @@ pub fn aln_where(
     let mut reader = Reader::new(thread_pool.open(filename).unwrap());
     let mut rows = 0usize;
     let mut matched = 0usize;
-    let mut writer = thread_pool.create(outfile, CompressionLevel::Default).unwrap();
+    let mut writer = thread_pool
+        .create(outfile, CompressionLevel::Default)
+        .unwrap();
     // thread_pool
     //     .create(outfile, CompressionLevel::Default)
     //     .unwrap();
@@ -337,6 +338,7 @@ pub fn aln_mask(
     let mut it = reader.records().peekable();
     let r = it.peek();
     let width = r.unwrap().as_ref().unwrap().full_seq().len();
+    reader = Reader::new(thread_pool.open(filename).unwrap());
     let mut height = 0usize;
     let mut gaps = vec![0u64; width];
     let mut n_char = vec![0u64; width];
@@ -380,7 +382,9 @@ pub fn aln_mask(
         .collect();
 
     let mut r2 = Reader::new(thread_pool.open(filename).unwrap());
-    let mut writer = thread_pool.create(outfile, CompressionLevel::Default).unwrap();
+    let mut writer = thread_pool
+        .create(outfile, CompressionLevel::Default)
+        .unwrap();
     while let Some(result) = r2.next() {
         let mut pos = 0usize;
         let mut buf: Vec<u8> = vec![];

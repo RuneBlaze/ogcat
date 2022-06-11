@@ -1,5 +1,7 @@
 mod aln;
+mod fastsp;
 mod ogcat;
+mod tree;
 
 use crate::ogcat::RFPrettyOutput;
 use clap::{ArgEnum, Parser, Subcommand};
@@ -9,6 +11,7 @@ use std::fmt::Display;
 use std::path::PathBuf;
 use tabled::Table;
 use tabled::{builder::Builder, Style};
+use tree::*;
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about)]
@@ -53,6 +56,18 @@ enum SubCommand {
     RfAllpairs {
         #[clap(short, long = "trees", multiple_values = true)]
         trees: Vec<String>,
+    },
+
+    TreeStats {
+        #[clap()]
+        input: PathBuf,
+    },
+
+    Sp {
+        #[clap(short, long = "ref")]
+        reference: PathBuf,
+        #[clap(short, long = "est")]
+        estimated: PathBuf,
     },
 
     AlnStats {
@@ -375,6 +390,29 @@ fn main() {
         } => {
             let res = aln::aln_where(&input, length_lb, length_ub, &output);
             println!("{}", Table::new([res]).with(Style::modern()));
+        }
+        SubCommand::TreeStats { input } => {
+            let collection = TreeCollection::from_newick(input).unwrap();
+            let stats = tree::tree_stats(&collection);
+            match args.format {
+                Format::Human => {
+                    println!("{}", Table::new(&stats).with(Style::modern()));
+                }
+                Format::Json => {
+                    println!("{}", serde_json::to_string_pretty(&stats).unwrap());
+                }
+            }
+        }
+        SubCommand::Sp { reference, estimated } => {
+            let fastsp_result = fastsp::calc_fpfn(&reference, &estimated);
+            match args.format {
+                Format::Human => {
+                    println!("{}", Table::new(&[fastsp_result]).with(Style::modern()));
+                }
+                Format::Json => {
+                    println!("{}", serde_json::to_string_pretty(&fastsp_result).unwrap());
+                }
+            }
         }
         _ => {
             panic!("Unsupported subcommand");
