@@ -38,42 +38,6 @@ impl Display for Alphabet {
     }
 }
 
-// pub trait AlnReader<S>
-// where
-//     S: PositionStore,
-// {
-//     fn next(
-//         &mut self,
-//     ) -> std::option::Option<Result<seq_io::fasta::RefRecord<'_, S>, seq_io::fasta::Error>>;
-//     fn peek_size(&mut self) -> usize;
-//     // fn records(&mut self) -> RecordsIter<'_, R, P, S>;
-// }
-
-// impl<R, P, S> AlnReader<S> for Reader<R, P, S>
-// where
-//     R: Read,
-//     P: BufPolicy,
-//     S: PositionStore,
-// {
-//     fn next(
-//         &mut self,
-//     ) -> std::option::Option<Result<seq_io::fasta::RefRecord<'_, S>, seq_io::fasta::Error>> {
-//         return self.next();
-//     }
-
-//     fn peek_size(&mut self) -> usize {
-//         return self
-//             .records()
-//             .peekable()
-//             .peek()
-//             .unwrap()
-//             .as_ref()
-//             .unwrap()
-//             .full_seq()
-//             .len();
-//     }
-// }
-
 pub fn p_distance(lhs: &[u8], rhs: &[u8], ambiguous: u8) -> Option<(usize, usize, f64)> {
     let mut tt = 0;
     let mut diff = 0;

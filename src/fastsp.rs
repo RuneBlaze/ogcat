@@ -31,7 +31,13 @@ pub struct SpResult {
 }
 
 impl SpResult {
-    pub fn new(shared: u64, ref_homs: u64, est_homs: u64, ref_columns: u64, est_columns: u64) -> Self {
+    pub fn new(
+        shared: u64,
+        ref_homs: u64,
+        est_homs: u64,
+        ref_columns: u64,
+        est_columns: u64,
+    ) -> Self {
         let spfn = ((ref_homs - shared) as f64) / (ref_homs as f64);
         let spfp = ((est_homs - shared) as f64) / (est_homs as f64);
         let expansion = est_columns as f64 / ref_columns as f64;
@@ -46,10 +52,25 @@ impl SpResult {
             expansion,
         }
     }
+
+    pub fn flip(&self) -> SpResult {
+        SpResult::new(
+            self.shared_homologies,
+            self.est_homologies,
+            self.ref_homologies,
+            self.est_columns,
+            self.ref_columns,
+        )
+    }
 }
 
 // See Siavash Mirarab, Tandy Warnow, FASTSP: linear time calculation of alignment accuracy, Bioinformatics
-pub fn calc_fpfn(reference: &PathBuf, estimated: &PathBuf, ignore_case : bool) -> SpResult {
+pub fn calc_fpfn(
+    reference: &PathBuf,
+    estimated: &PathBuf,
+    ignore_case: bool,
+    restricted: bool,
+) -> SpResult {
     let thread_pool = IoThread::new(2);
     let mut est_reader = Reader::new(thread_pool.open(estimated).unwrap());
     let mut it = est_reader.records().peekable();
@@ -116,7 +137,7 @@ pub fn calc_fpfn(reference: &PathBuf, estimated: &PathBuf, ignore_case : bool) -
         .iter()
         .count(); // this is horrible
     ref_reader = Reader::new(thread_pool.open(reference).unwrap());
-    let mut columns = vec![AHashMap::new(); ref_width]; // columns[i] contains the N(i, j) char
+    let mut columns: Vec<AHashMap<u32, u32>> = vec![AHashMap::new(); ref_width]; // columns[i] contains the N(i, j) char
     let mut ref_gaps = vec![0u32; ref_width];
     let mut ref_rows = 0u32;
     let mut ref_has_upper = vec![false; ref_width];
@@ -124,7 +145,19 @@ pub fn calc_fpfn(reference: &PathBuf, estimated: &PathBuf, ignore_case : bool) -
     while let Some(result) = ref_reader.next() {
         let lined_seqs = result.unwrap();
         let name = String::from_utf8(lined_seqs.head().iter().copied().collect_vec()).unwrap();
-        i = names[&name];
+        match names.get(&name) {
+            Some(j) => {
+                i = *j;
+            }
+            None => {
+                if restricted {
+                    continue;
+                } else {
+                    panic!("{} not found in one alignment!", name);
+                }
+            }
+        }
+
         let mut j: usize = 0; // j is the index of the current non-gap char in the current row
         let mut x: usize = 0; // x is the current site
         s.push(vec![]);
@@ -152,11 +185,10 @@ pub fn calc_fpfn(reference: &PathBuf, estimated: &PathBuf, ignore_case : bool) -
                 x += 1;
             }
         }
-        // i += 1;
         ref_rows += 1;
     }
-    let ref_true_columns = ref_num_lower.iter().sum::<u32>()
-        + ref_has_upper.iter().map(|it| *it as u32).sum::<u32>();
+    let ref_true_columns =
+        ref_num_lower.iter().sum::<u32>() + ref_has_upper.iter().map(|it| *it as u32).sum::<u32>();
     let ref_homologies = ref_gaps
         .iter()
         .map(|g| (ref_rows - *g) as u64 * (ref_rows - *g - 1) as u64 / 2)
@@ -171,5 +203,11 @@ pub fn calc_fpfn(reference: &PathBuf, estimated: &PathBuf, ignore_case : bool) -
             cnt
         })
         .sum::<u64>();
-    return SpResult::new(shared_homologies, ref_homologies, est_homologies, ref_true_columns.into(), est_true_columns.into());
+    return SpResult::new(
+        shared_homologies,
+        ref_homologies,
+        est_homologies,
+        ref_true_columns.into(),
+        est_true_columns.into(),
+    );
 }

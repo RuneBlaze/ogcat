@@ -66,7 +66,7 @@ enum SubCommand {
         #[clap()]
         input: PathBuf,
     },
-    
+
     /// Computes the sum-of-pairs error of two alignments a la FastSP.
     Sp {
         /// Path to reference alignment in FASTA format
@@ -78,8 +78,11 @@ enum SubCommand {
         /// Treats lower-case letters NOT as insertion columns
         #[clap(long)]
         ignore_case: bool,
+        /// Allows comparison when the reference is a subset of the estimated
+        #[clap(long)]
+        restricted: bool,
     },
-    
+
     /// Statistics about a FASTA alignment (gap ratio, p-distance, etc.)
     AlnStats {
         #[clap()]
@@ -420,8 +423,14 @@ fn main() {
             reference,
             estimated,
             ignore_case,
+            restricted,
         } => {
-            let fastsp_result = fastsp::calc_fpfn(&reference, &estimated, ignore_case);
+            let fastsp_result = if restricted {
+                let oppo = fastsp::calc_fpfn(&estimated, &reference, ignore_case, restricted);
+                oppo.flip()
+            } else {
+                fastsp::calc_fpfn(&reference, &estimated, ignore_case, restricted)
+            };
             match args.format {
                 Format::Human => {
                     println!("{}", Table::new(&[fastsp_result]).with(Style::modern()));
