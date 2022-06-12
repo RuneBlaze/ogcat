@@ -252,9 +252,7 @@ pub fn aln_where(
     let mut writer = thread_pool
         .create(outfile, CompressionLevel::Default)
         .unwrap();
-    // thread_pool
-    //     .create(outfile, CompressionLevel::Default)
-    //     .unwrap();
+
     while let Some(result) = reader.next() {
         let mut nongaps = 0usize;
         let mut buf: Vec<u8> = vec![];
@@ -295,6 +293,7 @@ pub fn aln_mask(
     filename: &PathBuf,
     num_sites: usize,
     percent_gappy: f64,
+    ignore_case : bool,
     outfile: &PathBuf,
 ) -> MaskResult {
     let thread_pool = IoThread::new(3);
@@ -312,9 +311,11 @@ pub fn aln_mask(
         let mut pos = 0usize;
         for l in result.unwrap().seq_lines() {
             for c in l {
-                if c.is_ascii_lowercase() {
+                if !ignore_case && c.is_ascii_lowercase() {
+                    gaps[pos] += 1;
                     continue;
                 }
+                
                 guesser.see(c);
                 match c {
                     b'-' => {
@@ -355,8 +356,12 @@ pub fn aln_mask(
         let r = result.unwrap();
         for l in r.seq_lines() {
             for c in l {
-                if !remove[pos] && !c.is_ascii_lowercase() {
-                    buf.push(*c);
+                if !remove[pos] {
+                    if !ignore_case && c.is_ascii_lowercase() {
+                        buf.push(b'-');
+                    } else {
+                        buf.push(*c);
+                    }
                 }
                 pos += 1;
             }

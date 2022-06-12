@@ -27,6 +27,7 @@ pub struct SpResult {
     pub est_columns: u64,
     pub spfp: f64,
     pub spfn: f64,
+    pub sp_err: f64,
     pub expansion: f64,
 }
 
@@ -49,6 +50,7 @@ impl SpResult {
             est_columns,
             spfp,
             spfn,
+            sp_err: (spfp + spfn) / 2.0,
             expansion,
         }
     }

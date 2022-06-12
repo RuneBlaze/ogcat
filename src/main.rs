@@ -112,6 +112,9 @@ enum SubCommand {
         output: PathBuf,
         #[clap(short, long, default_value_t = 1f64)]
         percent: f64,
+        /// Treats lower-case letters NOT as insertion columns
+        #[clap(long)]
+        ignore_case: bool,
     },
 }
 
@@ -349,11 +352,12 @@ fn main() {
             input,
             output,
             percent,
+            ignore_case,
         } => {
             let res = if percent >= 1f64 {
-                aln::aln_mask(&input, 1, 1f64, &output)
+                aln::aln_mask(&input, 1, 1f64, ignore_case, &output)
             } else {
-                aln::aln_mask(&input, 0, percent, &output)
+                aln::aln_mask(&input, 0, percent, ignore_case, &output)
             };
             println!("{}", Table::new([res]).with(Style::modern()));
         }
