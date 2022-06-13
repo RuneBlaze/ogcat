@@ -4,16 +4,12 @@ use rand::{seq::*, Rng};
 use rayon::prelude::*;
 use seq_io::fasta::Reader;
 
-use autocompress::{
-    create, iothread::IoThread, suggest_format_from_path, CompressionLevel, Encoder,
-};
-use seq_io::policy::BufPolicy;
+use autocompress::{iothread::IoThread, CompressionLevel};
 use seq_io::{prelude::*, PositionStore};
 use std::fmt::Display;
-use std::io::{BufWriter, Read};
+
 // needed to import necessary traits
 use std::{
-    fs::File,
     io::Write,
     path::{Path, PathBuf},
 };
@@ -293,7 +289,7 @@ pub fn aln_mask(
     filename: &PathBuf,
     num_sites: usize,
     percent_gappy: f64,
-    ignore_case : bool,
+    ignore_case: bool,
     outfile: &PathBuf,
 ) -> MaskResult {
     let thread_pool = IoThread::new(3);
@@ -316,7 +312,7 @@ pub fn aln_mask(
                     pos += 1;
                     continue;
                 }
-                
+
                 guesser.see(c);
                 match c {
                     b'-' => {

@@ -11,7 +11,6 @@ use std::fmt::Display;
 use std::path::PathBuf;
 use tabled::Table;
 use tabled::{builder::Builder, Style};
-use tree::*;
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about)]
@@ -81,6 +80,9 @@ enum SubCommand {
         /// Allows comparison when the reference is a subset of the estimated
         #[clap(long)]
         restricted: bool,
+        /// Specifies an additional character denoting missing data (gap)
+        #[clap(short, long = "missing")]
+        missing_char: Option<char>,
     },
 
     /// Statistics about a FASTA alignment (gap ratio, p-distance, etc.)
@@ -363,7 +365,11 @@ fn main() {
             };
             println!("{}", Table::new([res]).with(Style::modern()));
         }
-        SubCommand::AlnStats { input, pdis, approx } => {
+        SubCommand::AlnStats {
+            input,
+            pdis,
+            approx: _,
+        } => {
             let res = aln::aln_linear_stats(&input);
             let p_result = if pdis {
                 Some(aln::approx_pdis(&input, res.alph).unwrap())
@@ -430,12 +436,18 @@ fn main() {
             estimated,
             ignore_case,
             restricted,
+            missing_char,
         } => {
+            let mut b = [0; 1];
+            let char = missing_char.map(|it| {
+                it.encode_utf8(&mut b);
+                b[0]
+            });
             let fastsp_result = if restricted {
-                let oppo = fastsp::calc_fpfn(&estimated, &reference, ignore_case, restricted);
+                let oppo = fastsp::calc_fpfn(&estimated, &reference, ignore_case, restricted, char);
                 oppo.flip()
             } else {
-                fastsp::calc_fpfn(&reference, &estimated, ignore_case, restricted)
+                fastsp::calc_fpfn(&reference, &estimated, ignore_case, restricted, char)
             };
             match args.format {
                 Format::Human => {

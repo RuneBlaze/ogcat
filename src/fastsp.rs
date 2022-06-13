@@ -1,18 +1,14 @@
 use itertools::Itertools;
 
 use ahash::AHashMap;
-use autocompress::{
-    create, iothread::IoThread, suggest_format_from_path, CompressionLevel, Encoder,
-};
-use rand::{seq::*, Rng};
+use autocompress::iothread::IoThread;
+
 use rayon::prelude::*;
 use seq_io::fasta::Reader;
-use seq_io::policy::BufPolicy;
+
 use seq_io::{prelude::*, PositionStore};
 use serde::Serialize;
-use std::collections::{BTreeMap, HashMap};
-use std::fmt::Display;
-use std::io::{BufWriter, Read};
+
 use std::path::PathBuf;
 use tabled::Tabled;
 
@@ -72,6 +68,7 @@ pub fn calc_fpfn(
     estimated: &PathBuf,
     ignore_case: bool,
     restricted: bool,
+    missing_char: Option<u8>,
 ) -> SpResult {
     let thread_pool = IoThread::new(2);
     let mut est_reader = Reader::new(thread_pool.open(estimated).unwrap());
@@ -97,7 +94,10 @@ pub fn calc_fpfn(
         s.push(vec![]);
         for l in lined_seqs.seq_lines() {
             for c in l {
-                if *c != b'-' {
+                if *c == b'-' || missing_char.map_or(false, |x| *c == x) {
+                    // is gap
+                    gaps[x] += 1;
+                } else {
                     let ind = if !ignore_case && c.is_ascii_lowercase() {
                         gaps[x] += 1;
                         est_num_lower[x] += 1;
@@ -107,9 +107,6 @@ pub fn calc_fpfn(
                         x as u32
                     };
                     s[i].push(ind);
-                } else {
-                    // is gap
-                    gaps[x] += 1;
                 }
                 x += 1;
             }
@@ -165,7 +162,10 @@ pub fn calc_fpfn(
         s.push(vec![]);
         for l in lined_seqs.seq_lines() {
             for c in l {
-                if *c != b'-' {
+                if *c == b'-' || missing_char.map_or(false, |x| *c == x) {
+                    // is gap
+                    ref_gaps[x] += 1;
+                } else {
                     if !ignore_case && c.is_ascii_lowercase() {
                         // lower case letter. We just ignore it
                         ref_num_lower[x] += 1;
@@ -180,9 +180,6 @@ pub fn calc_fpfn(
                         }
                     };
                     j += 1;
-                } else {
-                    // is gap
-                    ref_gaps[x] += 1;
                 }
                 x += 1;
             }
@@ -199,8 +196,8 @@ pub fn calc_fpfn(
         .par_iter()
         .map(|counter| {
             let mut cnt = 0;
-            for v in counter.values() {
-                cnt += *v as u64 * (*v as u64 - 1) / 2;
+            for &v in counter.values() {
+                cnt += v as u64 * (v as u64 - 1) / 2;
             }
             cnt
         })
