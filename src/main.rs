@@ -90,6 +90,8 @@ enum SubCommand {
         /// compute p-distance (avg, max)
         #[clap(short, long)]
         pdis: bool,
+        #[clap(short, long, arg_enum, default_value_t = Approx::Auto)]
+        approx: Approx,
     },
 
     /// Filters an alignment record-wise
@@ -361,7 +363,7 @@ fn main() {
             };
             println!("{}", Table::new([res]).with(Style::modern()));
         }
-        SubCommand::AlnStats { input, pdis } => {
+        SubCommand::AlnStats { input, pdis, approx } => {
             let res = aln::aln_linear_stats(&input);
             let p_result = if pdis {
                 Some(aln::approx_pdis(&input, res.alph).unwrap())

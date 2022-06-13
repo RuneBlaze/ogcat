@@ -313,6 +313,7 @@ pub fn aln_mask(
             for c in l {
                 if !ignore_case && c.is_ascii_lowercase() {
                     gaps[pos] += 1;
+                    pos += 1;
                     continue;
                 }
                 
