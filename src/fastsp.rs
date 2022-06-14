@@ -91,7 +91,7 @@ pub fn calc_fpfn(
         s.push(vec![]);
         for l in lined_seqs.seq_lines() {
             for c in l {
-                if *c == b'-' || missing_char.map_or(false, |x| *c == x) {
+                if *c == b'-' || missing_char.map_or(false, |x| c.to_ascii_uppercase() == x) {
                     // is gap
                     gaps[x] += 1;
                 } else {
@@ -159,7 +159,7 @@ pub fn calc_fpfn(
         s.push(vec![]);
         for l in lined_seqs.seq_lines() {
             for c in l {
-                if *c == b'-' || missing_char.map_or(false, |x| *c == x) {
+                if *c == b'-' || missing_char.map_or(false, |x| c.to_ascii_uppercase() == x) {
                     // is gap
                     ref_gaps[x] += 1;
                 } else {

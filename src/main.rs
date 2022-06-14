@@ -442,7 +442,7 @@ fn main() {
         } => {
             let mut b = [0; 1];
             let char = missing_char.map(|it| {
-                it.encode_utf8(&mut b);
+                it.to_ascii_uppercase().encode_utf8(&mut b);
                 b[0]
             });
             let fastsp_result = if restricted {
