@@ -3,9 +3,11 @@ mod fastsp;
 mod ogcat;
 mod tree;
 
+use crate::fastsp::pretty_spresults;
 use crate::ogcat::RFPrettyOutput;
 use clap::{ArgEnum, Parser, Subcommand};
 use ogcat::TreeCollection;
+use aln::{Approx, CombinedAlnStats};
 use serde::Serialize;
 use std::fmt::Display;
 use std::path::PathBuf;
@@ -27,12 +29,7 @@ enum Format {
     Json,
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ArgEnum, Debug)]
-enum Approx {
-    Auto,
-    Yes,
-    No,
-}
+
 
 #[derive(Subcommand, Debug)]
 enum SubCommand {
@@ -89,9 +86,9 @@ enum SubCommand {
     AlnStats {
         #[clap()]
         input: PathBuf,
-        /// compute p-distance (avg, max)
-        #[clap(short, long)]
-        pdis: bool,
+        /// skips the computation of p-distance (avg, max)
+        #[clap(long)]
+        skip_pdis: bool,
         #[clap(short, long, arg_enum, default_value_t = Approx::Auto)]
         approx: Approx,
     },
@@ -367,16 +364,13 @@ fn main() {
         }
         SubCommand::AlnStats {
             input,
-            pdis,
-            approx: _,
+            skip_pdis,
+            approx,
         } => {
-            let res = aln::aln_linear_stats(&input);
-            let p_result = if pdis {
-                Some(aln::approx_pdis(&input, res.alph).unwrap())
-            } else {
-                None
-            };
-            let table = Builder::default()
+            let (stats, p_result) = aln::aln_linear_stats(&input, !skip_pdis, approx);
+            match args.format {
+                Format::Human => {
+                    let table = Builder::default()
                 .set_columns([
                     "alph",
                     "columns",
@@ -385,21 +379,29 @@ fn main() {
                     "avg_seq_length",
                     "avg_p_dis",
                     "max_p_dis",
+                    "p_dis_approx",
                 ])
                 .add_record([
-                    res.alph.to_string(),
-                    res.width.to_string(),
-                    res.rows.to_string(),
+                    stats.alph.to_string(),
+                    stats.width.to_string(),
+                    stats.rows.to_string(),
                     format!(
                         "{:.3}%",
-                        (res.gap_cells as f64) / res.total_cells as f64 * 100.0
+                        (stats.gap_cells as f64) / stats.total_cells as f64 * 100.0
                     ),
-                    format!("{:.4}", res.avg_sequence_length),
-                    format!("{:.4}", p_result.as_ref().unwrap().avg_pdis),
-                    format!("{:.4}", p_result.unwrap().max_pdis),
+                    format!("{:.4}", stats.avg_sequence_length),
+                    p_result.as_ref().map_or("Skipped".to_string(), |res| format!("{:.4}", res.avg_pdis)),
+                    p_result.as_ref().map_or("Skipped".to_string(), |res| format!("{:.4}", res.max_pdis)),
+                    p_result.as_ref().map_or("Skipped".to_string(), |res| format!("{}", res.approx)),
                 ])
                 .build();
             println!("{}", table.with(Style::modern()));
+                }
+                Format::Json => {
+                    let formatted_stats = CombinedAlnStats::new(&stats, &p_result);
+                    println!("{}", serde_json::to_string_pretty(&formatted_stats).unwrap());
+                },
+            }
         }
         SubCommand::RfAllpairs { trees } => {
             execute_rf_allpairs(&trees, args.format);
@@ -451,7 +453,7 @@ fn main() {
             };
             match args.format {
                 Format::Human => {
-                    println!("{}", Table::new(&[fastsp_result]).with(Style::modern()));
+                    println!("{}", pretty_spresults(&fastsp_result));
                 }
                 Format::Json => {
                     println!("{}", serde_json::to_string_pretty(&fastsp_result).unwrap());

@@ -1,12 +1,14 @@
 use itertools::Itertools;
 
+use rand::prelude::ThreadRng;
 use rand::{seq::*, Rng};
 use rayon::prelude::*;
-use seq_io::fasta::Reader;
-
+use seq_io::fasta::{Reader, RefRecord};
+use clap::ArgEnum;
 use autocompress::{iothread::IoThread, CompressionLevel};
 use seq_io::{prelude::*, PositionStore};
 use std::fmt::Display;
+use serde::Serialize;
 
 // needed to import necessary traits
 use std::{
@@ -19,7 +21,7 @@ use tabled::Tabled;
 const AA_WILDCARD: u8 = b'X';
 const NC_WILDCARD: u8 = b'N';
 
-#[derive(Debug, Eq, PartialEq, Clone, Copy)]
+#[derive(Debug, Eq, PartialEq, Clone, Copy, Serialize)]
 pub enum Alphabet {
     AminoAcid,
     Nucleotide,
@@ -90,7 +92,170 @@ pub struct AlnSimpleStats {
     pub avg_sequence_length: f64,
 }
 
-pub fn aln_linear_stats<P>(filename: P) -> AlnSimpleStats
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ArgEnum, Debug)]
+pub enum Approx {
+    Auto,
+    Yes,
+    No,
+}
+
+pub struct AlignmentSampler {
+    pub rng : ThreadRng,
+    pub records : Vec<Vec<u8>>,
+    pub max_capacity : Option<usize>,
+    pub i : usize,
+}
+
+impl AlignmentSampler {
+    pub fn new(max_capacitiy: Option<usize>) -> Self {
+        Self {
+            rng : rand::thread_rng(),
+            records : vec![],
+            max_capacity : max_capacitiy,
+            i : 0,
+        }
+    }
+
+    pub fn is_full(&self) -> bool {
+        self.max_capacity.map_or(false, |b| self.i >= b)
+    }
+
+    pub fn see(&mut self, record : &RefRecord) {
+        match self.max_capacity {
+            None => {
+                self.records.push(record.to_owned_record().seq);
+            }
+            Some(s) => {
+                if self.i < s {
+                    self.records.push(record.to_owned_record().seq);
+                } else {
+                    let j = self.rng.gen_range(0..(self.i + 1));
+                    if j < s {
+                        self.records[j] = record.to_owned_record().seq;
+                    }
+                }
+            }
+        }
+        self.i += 1;
+    }
+
+    pub fn compute_pdis(&mut self, alph : Alphabet, subsamples : bool) -> Result<PdisResult, &'static str> {
+        let mut avg_pdis_samples: Vec<f64> = vec![];
+        let mut max_pdis_samples: Vec<f64> = vec![];
+        if subsamples {
+            self.records.shuffle(&mut self.rng);
+            let samples = self.records
+                .chunks(1000)
+                .flat_map(|it| all_pairs_p_distance(it, alph));
+            samples.for_each(|(l, r)| {
+                avg_pdis_samples.push(l);
+                max_pdis_samples.push(r);
+            });
+        } else {
+            all_pairs_p_distance(&self.records, alph).iter().for_each(|(a, b)| {
+                avg_pdis_samples.push(*a);
+                max_pdis_samples.push(*b);
+            });
+        }
+
+        if avg_pdis_samples.is_empty() {
+            Err("No valid samples obtained")
+        } else {
+            // compute the median of the avg pdis
+            // the max of the max pdis
+            avg_pdis_samples.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            let avg_pdis = avg_pdis_samples[avg_pdis_samples.len() / 2];
+            let max_pdis = max_pdis_samples
+                .iter()
+                .copied()
+                .fold(f64::NEG_INFINITY, f64::max);
+            Ok(PdisResult { avg_pdis, max_pdis, approx: subsamples })
+        }
+    }
+}
+
+// pub fn approx_pdis(filename: &PathBuf, alph: Alphabet) -> Result<PdisResult, &'static str> {
+//     let mut rng = rand::thread_rng();
+//     let thread_pool = IoThread::new(2);
+//     let mut reader = Reader::new(thread_pool.open(filename).unwrap());
+//     let mut i = 0;
+//     let s = 9000;
+//     let mut records: Vec<Vec<u8>> = vec![];
+//     //reservoir sampling
+//     while let Some(result) = reader.next() {
+//         let r = result.unwrap();
+//         if i < s {
+//             records.push(r.to_owned_record().seq);
+//         } else {
+//             let j = rng.gen_range(0..(i + 1));
+//             if j < s {
+//                 records[j] = r.to_owned_record().seq;
+//             }
+//         }
+//         i += 1;
+//     }
+
+//     let mut avg_pdis_samples: Vec<f64> = vec![];
+//     let mut max_pdis_samples: Vec<f64> = vec![];
+//     if i <= s {
+//         all_pairs_p_distance(&records, alph).map(|(a, b)| {
+//             avg_pdis_samples.push(a);
+//             max_pdis_samples.push(b);
+//         });
+//     } else {
+//         records.shuffle(&mut rng);
+//         let samples = records
+//             .chunks(1000)
+//             .flat_map(|it| all_pairs_p_distance(it, alph));
+//         samples.for_each(|(l, r)| {
+//             avg_pdis_samples.push(l);
+//             max_pdis_samples.push(r);
+//         });
+//     }
+//     if avg_pdis_samples.is_empty() {
+//         Err("No valid samples obtained")
+//     } else {
+//         // compute the median of the avg pdis
+//         // the max of the max pdis
+//         avg_pdis_samples.sort_by(|a, b| a.partial_cmp(b).unwrap());
+//         let avg_pdis = avg_pdis_samples[avg_pdis_samples.len() / 2];
+//         let max_pdis = max_pdis_samples
+//             .iter()
+//             .copied()
+//             .fold(f64::NEG_INFINITY, f64::max);
+//         Ok(PdisResult { avg_pdis, max_pdis })
+//     }
+// }
+
+
+#[derive(Debug, Serialize)]
+pub struct CombinedAlnStats {
+    alph : Alphabet,
+    columns : usize,
+    rows : usize,
+    gap_ratio : f64,
+    avg_seq_length : f64,
+    avg_p_dis : Option<f64>,
+    max_p_dis : Option<f64>,
+    p_dis_approx : Option<bool>,
+}
+
+impl CombinedAlnStats {
+    pub fn new(stats : &AlnSimpleStats, pdis : &Option<PdisResult>) -> Self {
+        Self {
+            alph : stats.alph,
+            columns : stats.width,
+            rows : stats.rows,
+            gap_ratio : stats.gap_cells as f64 / stats.total_cells as f64,
+            avg_seq_length : stats.avg_sequence_length,
+            avg_p_dis : pdis.as_ref().map(|p| p.avg_pdis),
+            max_p_dis : pdis.as_ref().map(|p| p.max_pdis),
+            p_dis_approx : pdis.as_ref().map(|p| p.approx),
+        }
+    }
+}
+
+pub fn aln_linear_stats<P>(filename: P, p_dis: bool, approx : Approx) -> (AlnSimpleStats, Option<PdisResult>)
 where
     P: AsRef<Path>,
 {
@@ -102,10 +267,16 @@ where
     let thread_pool = IoThread::new(3);
     let mut reader = Reader::new(thread_pool.open(filename).unwrap());
     let mut guesser = AlphabetGuesser::new();
+    let mut sampler = AlignmentSampler::new(match (p_dis, approx) {
+        (false, _) => None,
+        (true, Approx::No) => None,
+        _ => Some(9000)
+    });
     while let Some(result) = reader.next() {
         let mut record_width = 0;
         let mut local_gaps = 0u64;
-        for l in result.unwrap().seq_lines() {
+        let rec = result.unwrap();
+        for l in rec.seq_lines() {
             tt_cells += l.len() as u64;
             record_width += l.len();
             for c in l {
@@ -115,6 +286,7 @@ where
                 }
             }
         }
+        sampler.see(&rec);
         gap_cells += local_gaps;
         if width == 0 {
             width = record_width;
@@ -124,14 +296,21 @@ where
         rows += 1;
         seq_lengths.push(record_width as u64 - local_gaps as u64);
     }
-    AlnSimpleStats {
+    let stats = AlnSimpleStats {
         alph: guesser.alph(),
         total_cells: tt_cells as usize,
         gap_cells: gap_cells as usize,
         width,
         rows,
         avg_sequence_length: seq_lengths.iter().sum::<u64>() as f64 / seq_lengths.len() as f64,
-    }
+    };
+    let pdis_result = match (p_dis, approx) {
+        (false, _) => None,
+        (true, Approx::No) => Some(sampler.compute_pdis(guesser.alph(), false).unwrap()),
+        (true, Approx::Auto) if !sampler.is_full() => Some(sampler.compute_pdis(guesser.alph(), false).unwrap()),
+        _ => Some(sampler.compute_pdis(guesser.alph(), true).unwrap())
+    };
+    (stats, pdis_result)
 }
 
 pub struct AlphabetGuesser {
@@ -180,60 +359,10 @@ pub struct WhereResult {
 pub struct PdisResult {
     pub avg_pdis: f64,
     pub max_pdis: f64,
+    pub approx : bool,
 }
 
-pub fn approx_pdis(filename: &PathBuf, alph: Alphabet) -> Result<PdisResult, &'static str> {
-    let mut rng = rand::thread_rng();
-    let thread_pool = IoThread::new(2);
-    let mut reader = Reader::new(thread_pool.open(filename).unwrap());
-    let mut i = 0;
-    let s = 9000;
-    let mut records: Vec<Vec<u8>> = vec![];
-    //reservoir sampling
-    while let Some(result) = reader.next() {
-        let r = result.unwrap();
-        if i < s {
-            records.push(r.to_owned_record().seq);
-        } else {
-            let j = rng.gen_range(0..(i + 1));
-            if j < s {
-                records[j] = r.to_owned_record().seq;
-            }
-        }
-        i += 1;
-    }
 
-    let mut avg_pdis_samples: Vec<f64> = vec![];
-    let mut max_pdis_samples: Vec<f64> = vec![];
-    if i <= s {
-        all_pairs_p_distance(&records, alph).map(|(a, b)| {
-            avg_pdis_samples.push(a);
-            max_pdis_samples.push(b);
-        });
-    } else {
-        records.shuffle(&mut rng);
-        let samples = records
-            .chunks(1000)
-            .flat_map(|it| all_pairs_p_distance(it, alph));
-        samples.for_each(|(l, r)| {
-            avg_pdis_samples.push(l);
-            max_pdis_samples.push(r);
-        });
-    }
-    if avg_pdis_samples.is_empty() {
-        Err("No valid samples obtained")
-    } else {
-        // compute the median of the avg pdis
-        // the max of the max pdis
-        avg_pdis_samples.sort_by(|a, b| a.partial_cmp(b).unwrap());
-        let avg_pdis = avg_pdis_samples[avg_pdis_samples.len() / 2];
-        let max_pdis = max_pdis_samples
-            .iter()
-            .copied()
-            .fold(f64::NEG_INFINITY, f64::max);
-        Ok(PdisResult { avg_pdis, max_pdis })
-    }
-}
 
 pub fn aln_where(
     filename: &PathBuf,

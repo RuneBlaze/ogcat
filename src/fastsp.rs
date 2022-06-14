@@ -1,16 +1,13 @@
 use itertools::Itertools;
-
 use ahash::AHashMap;
 use autocompress::iothread::IoThread;
-
 use rayon::prelude::*;
 use seq_io::fasta::Reader;
-
-use seq_io::{prelude::*, PositionStore};
+use seq_io::{prelude::*};
 use serde::Serialize;
-
+use tabled::builder::Builder;
 use std::path::PathBuf;
-use tabled::Tabled;
+use tabled::{Tabled, Table, Style};
 
 const MISSING_POS: u32 = u32::MAX;
 
@@ -209,4 +206,20 @@ pub fn calc_fpfn(
         ref_true_columns.into(),
         est_true_columns.into(),
     );
+}
+
+
+fn format_percentage(d: &f64) -> String {
+    format!("{:.2}%", d * 100f64)
+}
+
+pub fn pretty_spresults(results : &SpResult) -> Table {
+    Builder::default()
+        .set_columns(["SPFN", "SPFP", "Error", "Expansion"])
+        .add_record([
+            format_percentage(&results.spfn),
+            format_percentage(&results.spfp),
+            format_percentage(&results.sp_err),
+            format!("{:.3}", &results.expansion),
+        ]).build().with(Style::modern())
 }
