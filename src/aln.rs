@@ -286,7 +286,9 @@ where
                 }
             }
         }
-        sampler.see(&rec);
+        if p_dis {
+            sampler.see(&rec);
+        }
         gap_cells += local_gaps;
         if width == 0 {
             width = record_width;
