@@ -72,6 +72,12 @@ enum SubCommand {
         /// Treats lower-case letters NOT as insertion columns
         #[clap(long)]
         ignore_case: bool,
+        /// "ignore_case" only for the estimated alignment
+        #[clap(long)]
+        ignore_case_est: bool,
+        /// "ignore_case" only for the reference alignment
+        #[clap(long)]
+        ignore_case_ref: bool,
         /// Allows comparison when the reference is a subset of the estimated
         #[clap(long)]
         restricted: bool,
@@ -444,6 +450,8 @@ fn main() {
             reference,
             estimated,
             ignore_case,
+            ignore_case_est,
+            ignore_case_ref,
             restricted,
             missing_char,
         } => {
@@ -452,11 +460,13 @@ fn main() {
                 it.to_ascii_uppercase().encode_utf8(&mut b);
                 b[0]
             });
+            let ig_est = ignore_case || ignore_case_est;
+            let ig_ref = ignore_case || ignore_case_ref;
             let fastsp_result = if restricted {
-                let oppo = fastsp::calc_fpfn(&estimated, &reference, ignore_case, restricted, char);
+                let oppo = fastsp::calc_fpfn(&estimated, &reference, ig_ref, ig_est, restricted, char);
                 oppo.flip()
             } else {
-                fastsp::calc_fpfn(&reference, &estimated, ignore_case, restricted, char)
+                fastsp::calc_fpfn(&reference, &estimated, ig_est, ig_ref, restricted, char)
             };
             match args.format {
                 Format::Human => {

@@ -63,7 +63,8 @@ impl SpResult {
 pub fn calc_fpfn(
     reference: &PathBuf,
     estimated: &PathBuf,
-    ignore_case: bool,
+    ignore_case_est: bool,
+    ignore_case_ref: bool,
     restricted: bool,
     missing_char: Option<u8>,
 ) -> SpResult {
@@ -95,7 +96,7 @@ pub fn calc_fpfn(
                     // is gap
                     gaps[x] += 1;
                 } else {
-                    let ind = if !ignore_case && c.is_ascii_lowercase() {
+                    let ind = if !ignore_case_est && c.is_ascii_lowercase() {
                         gaps[x] += 1;
                         est_num_lower[x] += 1;
                         MISSING_POS
@@ -163,7 +164,7 @@ pub fn calc_fpfn(
                     // is gap
                     ref_gaps[x] += 1;
                 } else {
-                    if !ignore_case && c.is_ascii_lowercase() {
+                    if !ignore_case_ref && c.is_ascii_lowercase() {
                         // lower case letter. We just ignore it
                         ref_num_lower[x] += 1;
                         ref_gaps[x] += 1;
