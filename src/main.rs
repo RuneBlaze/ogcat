@@ -5,9 +5,9 @@ mod tree;
 
 use crate::fastsp::pretty_spresults;
 use crate::ogcat::RFPrettyOutput;
+use aln::{Approx, CombinedAlnStats};
 use clap::{ArgEnum, Parser, Subcommand};
 use ogcat::TreeCollection;
-use aln::{Approx, CombinedAlnStats};
 use serde::Serialize;
 use std::fmt::Display;
 use std::path::PathBuf;
@@ -28,8 +28,6 @@ enum Format {
     Human,
     Json,
 }
-
-
 
 #[derive(Subcommand, Debug)]
 enum SubCommand {
@@ -371,36 +369,45 @@ fn main() {
             match args.format {
                 Format::Human => {
                     let table = Builder::default()
-                .set_columns([
-                    "alph",
-                    "columns",
-                    "rows",
-                    "gap_ratio",
-                    "avg_seq_length",
-                    "avg_p_dis",
-                    "max_p_dis",
-                    "p_dis_approx",
-                ])
-                .add_record([
-                    stats.alph.to_string(),
-                    stats.width.to_string(),
-                    stats.rows.to_string(),
-                    format!(
-                        "{:.3}%",
-                        (stats.gap_cells as f64) / stats.total_cells as f64 * 100.0
-                    ),
-                    format!("{:.4}", stats.avg_sequence_length),
-                    p_result.as_ref().map_or("Skipped".to_string(), |res| format!("{:.4}", res.avg_pdis)),
-                    p_result.as_ref().map_or("Skipped".to_string(), |res| format!("{:.4}", res.max_pdis)),
-                    p_result.as_ref().map_or("Skipped".to_string(), |res| format!("{}", res.approx)),
-                ])
-                .build();
-            println!("{}", table.with(Style::modern()));
+                        .set_columns([
+                            "alph",
+                            "columns",
+                            "rows",
+                            "gap_ratio",
+                            "avg_seq_length",
+                            "avg_p_dis",
+                            "max_p_dis",
+                            "p_dis_approx",
+                        ])
+                        .add_record([
+                            stats.alph.to_string(),
+                            stats.width.to_string(),
+                            stats.rows.to_string(),
+                            format!(
+                                "{:.3}%",
+                                (stats.gap_cells as f64) / stats.total_cells as f64 * 100.0
+                            ),
+                            format!("{:.4}", stats.avg_sequence_length),
+                            p_result.as_ref().map_or("Skipped".to_string(), |res| {
+                                format!("{:.4}", res.avg_pdis)
+                            }),
+                            p_result.as_ref().map_or("Skipped".to_string(), |res| {
+                                format!("{:.4}", res.max_pdis)
+                            }),
+                            p_result
+                                .as_ref()
+                                .map_or("Skipped".to_string(), |res| format!("{}", res.approx)),
+                        ])
+                        .build();
+                    println!("{}", table.with(Style::modern()));
                 }
                 Format::Json => {
                     let formatted_stats = CombinedAlnStats::new(&stats, &p_result);
-                    println!("{}", serde_json::to_string_pretty(&formatted_stats).unwrap());
-                },
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&formatted_stats).unwrap()
+                    );
+                }
             }
         }
         SubCommand::RfAllpairs { trees } => {

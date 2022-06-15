@@ -1,14 +1,14 @@
 use itertools::Itertools;
 
+use autocompress::{iothread::IoThread, CompressionLevel};
+use clap::ArgEnum;
 use rand::prelude::ThreadRng;
 use rand::{seq::*, Rng};
 use rayon::prelude::*;
 use seq_io::fasta::{Reader, RefRecord};
-use clap::ArgEnum;
-use autocompress::{iothread::IoThread, CompressionLevel};
 use seq_io::{prelude::*, PositionStore};
-use std::fmt::Display;
 use serde::Serialize;
+use std::fmt::Display;
 
 // needed to import necessary traits
 use std::{
@@ -100,19 +100,19 @@ pub enum Approx {
 }
 
 pub struct AlignmentSampler {
-    pub rng : ThreadRng,
-    pub records : Vec<Vec<u8>>,
-    pub max_capacity : Option<usize>,
-    pub i : usize,
+    pub rng: ThreadRng,
+    pub records: Vec<Vec<u8>>,
+    pub max_capacity: Option<usize>,
+    pub i: usize,
 }
 
 impl AlignmentSampler {
     pub fn new(max_capacitiy: Option<usize>) -> Self {
         Self {
-            rng : rand::thread_rng(),
-            records : vec![],
-            max_capacity : max_capacitiy,
-            i : 0,
+            rng: rand::thread_rng(),
+            records: vec![],
+            max_capacity: max_capacitiy,
+            i: 0,
         }
     }
 
@@ -120,7 +120,7 @@ impl AlignmentSampler {
         self.max_capacity.map_or(false, |b| self.i >= b)
     }
 
-    pub fn see(&mut self, record : &RefRecord) {
+    pub fn see(&mut self, record: &RefRecord) {
         match self.max_capacity {
             None => {
                 self.records.push(record.to_owned_record().seq);
@@ -139,12 +139,17 @@ impl AlignmentSampler {
         self.i += 1;
     }
 
-    pub fn compute_pdis(&mut self, alph : Alphabet, subsamples : bool) -> Result<PdisResult, &'static str> {
+    pub fn compute_pdis(
+        &mut self,
+        alph: Alphabet,
+        subsamples: bool,
+    ) -> Result<PdisResult, &'static str> {
         let mut avg_pdis_samples: Vec<f64> = vec![];
         let mut max_pdis_samples: Vec<f64> = vec![];
         if subsamples {
             self.records.shuffle(&mut self.rng);
-            let samples = self.records
+            let samples = self
+                .records
                 .chunks(1000)
                 .flat_map(|it| all_pairs_p_distance(it, alph));
             samples.for_each(|(l, r)| {
@@ -152,10 +157,12 @@ impl AlignmentSampler {
                 max_pdis_samples.push(r);
             });
         } else {
-            all_pairs_p_distance(&self.records, alph).iter().for_each(|(a, b)| {
-                avg_pdis_samples.push(*a);
-                max_pdis_samples.push(*b);
-            });
+            all_pairs_p_distance(&self.records, alph)
+                .iter()
+                .for_each(|(a, b)| {
+                    avg_pdis_samples.push(*a);
+                    max_pdis_samples.push(*b);
+                });
         }
 
         if avg_pdis_samples.is_empty() {
@@ -169,7 +176,11 @@ impl AlignmentSampler {
                 .iter()
                 .copied()
                 .fold(f64::NEG_INFINITY, f64::max);
-            Ok(PdisResult { avg_pdis, max_pdis, approx: subsamples })
+            Ok(PdisResult {
+                avg_pdis,
+                max_pdis,
+                approx: subsamples,
+            })
         }
     }
 }
@@ -227,35 +238,38 @@ impl AlignmentSampler {
 //     }
 // }
 
-
 #[derive(Debug, Serialize)]
 pub struct CombinedAlnStats {
-    alph : Alphabet,
-    columns : usize,
-    rows : usize,
-    gap_ratio : f64,
-    avg_seq_length : f64,
-    avg_p_dis : Option<f64>,
-    max_p_dis : Option<f64>,
-    p_dis_approx : Option<bool>,
+    alph: Alphabet,
+    columns: usize,
+    rows: usize,
+    gap_ratio: f64,
+    avg_seq_length: f64,
+    avg_p_dis: Option<f64>,
+    max_p_dis: Option<f64>,
+    p_dis_approx: Option<bool>,
 }
 
 impl CombinedAlnStats {
-    pub fn new(stats : &AlnSimpleStats, pdis : &Option<PdisResult>) -> Self {
+    pub fn new(stats: &AlnSimpleStats, pdis: &Option<PdisResult>) -> Self {
         Self {
-            alph : stats.alph,
-            columns : stats.width,
-            rows : stats.rows,
-            gap_ratio : stats.gap_cells as f64 / stats.total_cells as f64,
-            avg_seq_length : stats.avg_sequence_length,
-            avg_p_dis : pdis.as_ref().map(|p| p.avg_pdis),
-            max_p_dis : pdis.as_ref().map(|p| p.max_pdis),
-            p_dis_approx : pdis.as_ref().map(|p| p.approx),
+            alph: stats.alph,
+            columns: stats.width,
+            rows: stats.rows,
+            gap_ratio: stats.gap_cells as f64 / stats.total_cells as f64,
+            avg_seq_length: stats.avg_sequence_length,
+            avg_p_dis: pdis.as_ref().map(|p| p.avg_pdis),
+            max_p_dis: pdis.as_ref().map(|p| p.max_pdis),
+            p_dis_approx: pdis.as_ref().map(|p| p.approx),
         }
     }
 }
 
-pub fn aln_linear_stats<P>(filename: P, p_dis: bool, approx : Approx) -> (AlnSimpleStats, Option<PdisResult>)
+pub fn aln_linear_stats<P>(
+    filename: P,
+    p_dis: bool,
+    approx: Approx,
+) -> (AlnSimpleStats, Option<PdisResult>)
 where
     P: AsRef<Path>,
 {
@@ -270,7 +284,7 @@ where
     let mut sampler = AlignmentSampler::new(match (p_dis, approx) {
         (false, _) => None,
         (true, Approx::No) => None,
-        _ => Some(9000)
+        _ => Some(9000),
     });
     while let Some(result) = reader.next() {
         let mut record_width = 0;
@@ -309,8 +323,10 @@ where
     let pdis_result = match (p_dis, approx) {
         (false, _) => None,
         (true, Approx::No) => Some(sampler.compute_pdis(guesser.alph(), false).unwrap()),
-        (true, Approx::Auto) if !sampler.is_full() => Some(sampler.compute_pdis(guesser.alph(), false).unwrap()),
-        _ => Some(sampler.compute_pdis(guesser.alph(), true).unwrap())
+        (true, Approx::Auto) if !sampler.is_full() => {
+            Some(sampler.compute_pdis(guesser.alph(), false).unwrap())
+        }
+        _ => Some(sampler.compute_pdis(guesser.alph(), true).unwrap()),
     };
     (stats, pdis_result)
 }
@@ -328,7 +344,7 @@ impl AlphabetGuesser {
 
     pub fn see(&mut self, c: &u8) {
         match c.to_ascii_uppercase() {
-            b'A' | b'C' | b'T' | b'G' | b'-' | b'N' => {}
+            b'A' | b'C' | b'T' | b'G' | b'-' | b'N' | b'U' => {}
             _ => {
                 self.seen_aa_char = true;
             }
@@ -361,10 +377,8 @@ pub struct WhereResult {
 pub struct PdisResult {
     pub avg_pdis: f64,
     pub max_pdis: f64,
-    pub approx : bool,
+    pub approx: bool,
 }
-
-
 
 pub fn aln_where(
     filename: &PathBuf,

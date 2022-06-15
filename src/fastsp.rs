@@ -1,13 +1,13 @@
-use itertools::Itertools;
 use ahash::AHashMap;
 use autocompress::iothread::IoThread;
+use itertools::Itertools;
 use rayon::prelude::*;
 use seq_io::fasta::Reader;
-use seq_io::{prelude::*};
+use seq_io::prelude::*;
 use serde::Serialize;
-use tabled::builder::Builder;
 use std::path::PathBuf;
-use tabled::{Tabled, Table, Style};
+use tabled::builder::Builder;
+use tabled::{Style, Table, Tabled};
 
 const MISSING_POS: u32 = u32::MAX;
 
@@ -183,6 +183,7 @@ pub fn calc_fpfn(
         }
         ref_rows += 1;
     }
+    assert_eq!(rows, ref_rows, "Alignments have different number of rows ({} != {})! Use --restricted if reference is intended as a subset", rows, ref_rows);
     let ref_true_columns =
         ref_num_lower.iter().sum::<u32>() + ref_has_upper.iter().map(|it| *it as u32).sum::<u32>();
     let ref_homologies = ref_gaps
@@ -208,12 +209,11 @@ pub fn calc_fpfn(
     );
 }
 
-
 fn format_percentage(d: &f64) -> String {
     format!("{:.2}%", d * 100f64)
 }
 
-pub fn pretty_spresults(results : &SpResult) -> Table {
+pub fn pretty_spresults(results: &SpResult) -> Table {
     Builder::default()
         .set_columns(["SPFN", "SPFP", "Error", "Expansion"])
         .add_record([
@@ -221,5 +221,7 @@ pub fn pretty_spresults(results : &SpResult) -> Table {
             format_percentage(&results.spfp),
             format_percentage(&results.sp_err),
             format!("{:.3}", &results.expansion),
-        ]).build().with(Style::modern())
+        ])
+        .build()
+        .with(Style::modern())
 }
