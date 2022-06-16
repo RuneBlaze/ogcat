@@ -2,6 +2,7 @@ mod aln;
 mod fastsp;
 mod ogcat;
 mod tree;
+mod extract;
 
 use crate::fastsp::pretty_spresults;
 use crate::ogcat::RFPrettyOutput;
@@ -10,7 +11,10 @@ use clap::{ArgEnum, Parser, Subcommand};
 use ogcat::TreeCollection;
 use serde::Serialize;
 use std::fmt::Display;
+use std::fs::File;
+use std::io::{BufWriter, Write, self};
 use std::path::PathBuf;
+use once_cell::sync::Lazy;
 use tabled::Table;
 use tabled::{builder::Builder, Style};
 
@@ -21,6 +25,8 @@ struct Args {
     cmd: SubCommand,
     #[clap(long,arg_enum, default_value_t = Format::Human)]
     format: Format,
+    #[clap(short, long)]
+    output: Option<PathBuf>,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ArgEnum, Debug)]
@@ -31,7 +37,7 @@ enum Format {
 
 #[derive(Subcommand, Debug)]
 enum SubCommand {
-    /// Computes the RF and related rates of two trees
+    /// Compute the RF and related rates of two trees
     Rf {
         #[clap(short, long = "ref")]
         reference: PathBuf,
@@ -41,7 +47,7 @@ enum SubCommand {
         fast: bool,
     },
 
-    /// Computes pairwise (one-to-many, many-pairs) RF rates
+    /// Compute pairwise (one-to-many, many-pairs) RF rates
     RfMulti {
         #[clap(short, long = "ref")]
         reference: PathBuf,
@@ -49,7 +55,7 @@ enum SubCommand {
         estimated: PathBuf,
     },
 
-    /// Computes all pairs RF rates from a collection of trees
+    /// Compute all pairs RF rates from a collection of trees
     RfAllpairs {
         #[clap(short, long = "trees", multiple_values = true)]
         trees: Vec<String>,
@@ -61,7 +67,7 @@ enum SubCommand {
         input: PathBuf,
     },
 
-    /// Computes the sum-of-pairs error of two alignments a la FastSP.
+    /// Compute the sum-of-pairs error of two alignments a la FastSP.
     Sp {
         /// Path to reference alignment in FASTA format
         #[clap(short, long = "ref")]
@@ -69,19 +75,19 @@ enum SubCommand {
         /// Path to estimated alignment in FASTA format
         #[clap(short, long = "est")]
         estimated: PathBuf,
-        /// Treats lower-case letters NOT as insertion columns
+        /// Treat lower-case letters NOT as insertion columns for both reference and estimated
         #[clap(long)]
         ignore_case: bool,
-        /// "ignore_case" only for the estimated alignment
+        /// "ignore-case" only for the estimated alignment
         #[clap(long)]
         ignore_case_est: bool,
-        /// "ignore_case" only for the reference alignment
+        /// "ignore-case" only for the reference alignment
         #[clap(long)]
         ignore_case_ref: bool,
-        /// Allows comparison when the reference is a subset of the estimated
+        /// Allow comparison when the reference is a subset of the estimated
         #[clap(long)]
         restricted: bool,
-        /// Specifies an additional character denoting missing data (gap)
+        /// Specify an additional character denoting missing data (gap)
         #[clap(short, long = "missing")]
         missing_char: Option<char>,
     },
@@ -90,14 +96,15 @@ enum SubCommand {
     AlnStats {
         #[clap()]
         input: PathBuf,
-        /// skips the computation of p-distance (avg, max)
+        /// skip the computation of p-distance (avg, max)
         #[clap(long)]
         skip_pdis: bool,
+        /// decide if the alignment should be subsampled for computing the p-distance
         #[clap(short, long, arg_enum, default_value_t = Approx::Auto)]
         approx: Approx,
     },
 
-    /// Filters an alignment record-wise
+    /// Filter an alignment record-wise
     AlnWhere {
         #[clap()]
         input: PathBuf,
@@ -109,7 +116,14 @@ enum SubCommand {
         length_ub: Option<usize>,
     },
 
-    /// Masks gappy sites in an alignment
+    AlnExtract{
+        #[clap()]
+        input: PathBuf,
+        #[clap(short, long, multiple_values = true, default_value = "names")]
+        types : Vec<extract::InfoType>,
+    },
+
+    /// Mask gappy sites in an alignment
     Mask {
         #[clap()]
         input: PathBuf,
@@ -117,7 +131,7 @@ enum SubCommand {
         output: PathBuf,
         #[clap(short, long, default_value_t = 1f64)]
         percent: f64,
-        /// Treats lower-case letters NOT as insertion columns
+        /// Treat lower-case letters NOT as insertion columns
         #[clap(long)]
         ignore_case: bool,
     },
@@ -345,6 +359,12 @@ fn execute_rf_multi(reference: &PathBuf, estimated: &PathBuf, format: Format) {
 
 fn main() {
     let args = Args::parse();
+    let mut out = Lazy::new(|| match args.output {
+        Some(x) => {
+            Box::new(BufWriter::new(File::create(x).unwrap()))
+        }
+        None => Box::new(io::stdout()) as Box<dyn Write>,
+    });
     match args.cmd {
         SubCommand::Rf {
             reference,
@@ -364,7 +384,7 @@ fn main() {
             } else {
                 aln::aln_mask(&input, 0, percent, ignore_case, &output)
             };
-            println!("{}", Table::new([res]).with(Style::modern()));
+            writeln!(&mut out, "{}", Table::new([res]).with(Style::modern())).unwrap();
         }
         SubCommand::AlnStats {
             input,
@@ -405,14 +425,14 @@ fn main() {
                                 .map_or("Skipped".to_string(), |res| format!("{}", res.approx)),
                         ])
                         .build();
-                    println!("{}", table.with(Style::modern()));
+                    writeln!(&mut out, "{}", table.with(Style::modern())).unwrap();
                 }
                 Format::Json => {
                     let formatted_stats = CombinedAlnStats::new(&stats, &p_result);
-                    println!(
+                    writeln!(&mut out, 
                         "{}",
                         serde_json::to_string_pretty(&formatted_stats).unwrap()
-                    );
+                    ).unwrap();
                 }
             }
         }
@@ -432,17 +452,17 @@ fn main() {
             length_ub,
         } => {
             let res = aln::aln_where(&input, length_lb, length_ub, &output);
-            println!("{}", Table::new([res]).with(Style::modern()));
+            writeln!(&mut out, "{}", Table::new([res]).with(Style::modern())).unwrap();
         }
         SubCommand::TreeStats { input } => {
             let collection = TreeCollection::from_newick(input).unwrap();
             let stats = tree::tree_stats(&collection);
             match args.format {
                 Format::Human => {
-                    println!("{}", Table::new(&stats).with(Style::modern()));
+                    writeln!(&mut out, "{}", Table::new(&stats).with(Style::modern())).unwrap();
                 }
                 Format::Json => {
-                    println!("{}", serde_json::to_string_pretty(&stats).unwrap());
+                    writeln!(&mut out, "{}", serde_json::to_string_pretty(&stats).unwrap()).unwrap();
                 }
             }
         }
@@ -470,10 +490,26 @@ fn main() {
             };
             match args.format {
                 Format::Human => {
-                    println!("{}", pretty_spresults(&fastsp_result));
+                    writeln!(&mut out, "{}", pretty_spresults(&fastsp_result)).unwrap();
                 }
                 Format::Json => {
-                    println!("{}", serde_json::to_string_pretty(&fastsp_result).unwrap());
+                    writeln!(&mut out, "{}", serde_json::to_string_pretty(&fastsp_result).unwrap()).unwrap();
+                }
+            }
+        }
+        SubCommand::AlnExtract { input, types } => {
+            assert_eq!(
+                Format::Json,
+                args.format,
+                "none JSON formats not yet implemented"
+            );
+            let res = extract::aln_extract(&input, &types);
+            match args.format {
+                Format::Human => {
+                    unimplemented!();
+                }
+                Format::Json => {
+                    writeln!(&mut out, "{}", serde_json::to_string_pretty(&res).unwrap()).unwrap();
                 }
             }
         }

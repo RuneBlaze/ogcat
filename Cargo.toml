@@ -16,6 +16,7 @@ seq_io = "0.4.0-alpha.0"
 itertools = "0.10.3"
 rayon = "1.5.3"
 lz4 = "1.23.1"
+once_cell = "1.12.0"
 autocompress = { version = "0.2.2", features = ["lz4", "gzip", "thread", "zstd"], default-features = false }
 ahash = "0.7.6"
 

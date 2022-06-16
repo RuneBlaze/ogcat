@@ -363,6 +363,7 @@ dependencies = [
  "clap",
  "itertools",
  "lz4",
+ "once_cell",
  "rand",
  "rayon",
  "seq_io",
