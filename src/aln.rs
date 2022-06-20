@@ -9,7 +9,7 @@ use rayon::prelude::*;
 use seq_io::fasta::{Reader, RefRecord};
 use seq_io::{prelude::*, PositionStore};
 use serde::Serialize;
-use std::collections::HashSet;
+
 use std::fmt::Display;
 
 // needed to import necessary traits

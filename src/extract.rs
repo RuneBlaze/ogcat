@@ -1,15 +1,15 @@
-use autocompress::{iothread::IoThread, CompressionLevel};
+use autocompress::{iothread::IoThread};
 use clap::ArgEnum;
 use itertools::Itertools;
 use seq_io::{
-    fasta::{Reader, RefRecord},
+    fasta::{Reader},
     BaseRecord,
 };
 use serde::Serialize;
 use std::{
     fmt::Display,
     io::Write,
-    path::{Path, PathBuf},
+    path::{Path},
     str::FromStr,
 };
 
@@ -42,7 +42,7 @@ pub struct AlnInfo {
     names: Option<Vec<String>>,
 }
 
-pub fn aln_extract<P>(filename: P, stats: &[InfoType]) -> AlnInfo
+pub fn aln_extract<P>(filename: P, _stats: &[InfoType]) -> AlnInfo
 where
     P: AsRef<Path>,
 {
@@ -56,6 +56,6 @@ where
             names.push(name);
         }
     }
-    let mut info = AlnInfo { names };
+    let info = AlnInfo { names };
     return info;
 }

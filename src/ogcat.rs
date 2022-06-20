@@ -2,7 +2,7 @@ use ahash::{AHashMap, AHashSet};
 use rand::prelude::*;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use serde::Serialize;
-use std::collections::{BTreeMap, BTreeSet, BinaryHeap, HashSet};
+use std::collections::{BinaryHeap, HashSet};
 use std::fs::File;
 use std::io::{self, BufRead};
 use std::path::Path;
