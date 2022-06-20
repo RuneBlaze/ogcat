@@ -401,12 +401,14 @@ pub struct RFPrettyOutput {
 impl RFPrettyOutput {
     pub fn new(raw: RFOutput) -> RFPrettyOutput {
         let differing_edges = raw.fn_edges + raw.fp_edges;
+        let fp_rate = raw.fp_edges as f64 / raw.est_edges as f64;
+        let fn_rate = raw.fn_edges as f64 / raw.ref_edges as f64;
         RFPrettyOutput {
             raw,
-            n_rf: (differing_edges as f64) / (2 * raw.ntaxa - 6) as f64,
+            n_rf: (fp_rate + fn_rate) / 2.0,
             rf_rate: (differing_edges as f64) / (raw.est_edges + raw.ref_edges) as f64,
-            fp_rate: raw.fp_edges as f64 / raw.est_edges as f64,
-            fn_rate: raw.fn_edges as f64 / raw.ref_edges as f64,
+            fp_rate,
+            fn_rate,
         }
     }
 }

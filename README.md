@@ -21,6 +21,12 @@ Install the [Rust toolchain](https://www.rust-lang.org/tools/install) and then c
 RUSTFLAGS="-C target-feature=+avx" cargo build --release
 ```
 
+## Status
+
+This is currently starting to be a growing collection of "features"
+that are not very well organized. At some future version there will be significant
+cleanup/rewrite of the code (oh the horror of my code!) and to have a consistent UX.
+
 ## Manual
 
 See [wiki](https://github.com/RuneBlaze/ogcat/wiki).

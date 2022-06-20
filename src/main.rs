@@ -114,6 +114,8 @@ enum SubCommand {
         length_lb: Option<usize>,
         #[clap(long = "len_ub")]
         length_ub: Option<usize>,
+        #[clap(long = "include", multiple_values = true)]
+        inclusion: Vec<PathBuf>,
     },
 
     AlnExtract{
@@ -450,9 +452,17 @@ fn main() {
             output,
             length_lb,
             length_ub,
+            inclusion,
         } => {
-            let res = aln::aln_where(&input, length_lb, length_ub, &output);
-            writeln!(&mut out, "{}", Table::new([res]).with(Style::modern())).unwrap();
+            let res = aln::aln_where(&input, length_lb, length_ub, &inclusion, &output);
+            match args.format {
+                Format::Human => {
+                    writeln!(&mut out, "{}", Table::new([res]).with(Style::modern())).unwrap();
+                }
+                Format::Json => {
+                    writeln!(&mut out, "{}", serde_json::to_string_pretty(&res).unwrap()).unwrap();
+                }
+            }
         }
         SubCommand::TreeStats { input } => {
             let collection = TreeCollection::from_newick(input).unwrap();

@@ -1,3 +1,4 @@
+use ahash::AHashSet;
 use itertools::Itertools;
 
 use autocompress::{iothread::IoThread, CompressionLevel};
@@ -8,6 +9,7 @@ use rayon::prelude::*;
 use seq_io::fasta::{Reader, RefRecord};
 use seq_io::{prelude::*, PositionStore};
 use serde::Serialize;
+use std::collections::HashSet;
 use std::fmt::Display;
 
 // needed to import necessary traits
@@ -360,17 +362,23 @@ impl AlphabetGuesser {
     }
 }
 
-#[derive(Debug, Tabled)]
+#[derive(Debug, Tabled, Serialize)]
 pub struct MaskResult {
     pub total_columns: usize,
     pub masked_columns: usize,
     pub total_rows: usize,
 }
 
-#[derive(Debug, Tabled)]
+#[derive(Debug, Tabled, Serialize)]
 pub struct WhereResult {
     pub total_rows: usize,
     pub matched_rows: usize,
+    #[tabled(display_with = "display_ratio")]
+    pub force_included : (usize, usize),
+}
+
+fn display_ratio(v : &(usize, usize)) -> String {
+    format!("{}/{}", v.0, v.1)
 }
 
 #[derive(Debug, Tabled, Clone)]
@@ -380,12 +388,28 @@ pub struct PdisResult {
     pub approx: bool,
 }
 
+pub fn parse_sequence_set(files : &[PathBuf]) -> AHashSet<String> {
+    let mut res = AHashSet::new();
+    let thread_pool = IoThread::new(2);
+    for f in files {
+        let mut reader = Reader::new(thread_pool.open(f).unwrap());
+        while let Some(result) = reader.next() {
+            let name = String::from_utf8(result.unwrap().head().iter().copied().collect_vec()).unwrap();
+            res.insert(name);
+        }
+    }
+    return res;
+}
+
 pub fn aln_where(
     filename: &PathBuf,
     length_lb: Option<usize>,
     length_ub: Option<usize>,
+    inclusion: &[PathBuf],
     outfile: &PathBuf,
 ) -> WhereResult {
+    let force_inclusion_set = parse_sequence_set(inclusion);
+    let mut force_included = 0usize;
     let thread_pool = IoThread::new(2);
     let mut reader = Reader::new(thread_pool.open(filename).unwrap());
     let mut rows = 0usize;
@@ -393,11 +417,17 @@ pub fn aln_where(
     let mut writer = thread_pool
         .create(outfile, CompressionLevel::Default)
         .unwrap();
-
     while let Some(result) = reader.next() {
         let mut nongaps = 0usize;
         let mut buf: Vec<u8> = vec![];
         let r = result.unwrap();
+        let mut force_include = false;
+        if !force_inclusion_set.is_empty() {
+            let name = String::from_utf8(r.head().iter().copied().collect_vec()).unwrap();
+            if force_inclusion_set.contains(&name) {
+                force_include = true;
+            }
+        }
         rows += 1;
         for l in r.seq_lines() {
             for c in l {
@@ -409,24 +439,29 @@ pub fn aln_where(
         }
         let a = length_lb.map(|x| nongaps >= x);
         let b = length_ub.map(|x| nongaps <= x);
-        match (a, b) {
-            (Some(false), _) => continue,
-            (_, Some(false)) => continue,
-            (_, _) => {
-                writer.write_all(b">").unwrap();
-                writer.write_all(r.head()).unwrap();
-                writer.write_all(b"\n").unwrap();
-                buf.chunks(60).for_each(|chunk| {
-                    writer.write_all(chunk).unwrap();
-                    writer.write_all(b"\n").unwrap();
-                });
-                matched += 1;
+        match (a, b, force_include) {
+            (_, _, true) => {
+                force_included += 1;
+            }
+            (Some(false), _, _) => continue,
+            (_, Some(false), _) => continue,
+            (_, _, _) => {
+                
             }
         }
+        writer.write_all(b">").unwrap();
+        writer.write_all(r.head()).unwrap();
+        writer.write_all(b"\n").unwrap();
+        buf.chunks(60).for_each(|chunk| {
+            writer.write_all(chunk).unwrap();
+            writer.write_all(b"\n").unwrap();
+        });
+        matched += 1;
     }
     WhereResult {
         total_rows: rows,
         matched_rows: matched,
+        force_included: (force_included, force_inclusion_set.len()),
     }
 }
 
