@@ -1,11 +1,16 @@
 use autocompress::{iothread::IoThread, CompressionLevel};
 use clap::ArgEnum;
 use itertools::Itertools;
-use seq_io::{fasta::{Reader, RefRecord}, BaseRecord};
+use seq_io::{
+    fasta::{Reader, RefRecord},
+    BaseRecord,
+};
 use serde::Serialize;
 use std::{
+    fmt::Display,
     io::Write,
-    path::{Path, PathBuf}, str::FromStr, fmt::Display,
+    path::{Path, PathBuf},
+    str::FromStr,
 };
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ArgEnum, Debug, Serialize)]
@@ -37,10 +42,7 @@ pub struct AlnInfo {
     names: Option<Vec<String>>,
 }
 
-pub fn aln_extract<P>(
-    filename: P,
-    stats: &[InfoType],
-) -> AlnInfo
+pub fn aln_extract<P>(filename: P, stats: &[InfoType]) -> AlnInfo
 where
     P: AsRef<Path>,
 {

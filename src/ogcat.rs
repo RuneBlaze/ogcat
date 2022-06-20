@@ -1,7 +1,8 @@
+use ahash::{AHashMap, AHashSet};
 use rand::prelude::*;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use serde::Serialize;
-use std::collections::HashSet;
+use std::collections::{BTreeMap, BTreeSet, BinaryHeap, HashSet};
 use std::fs::File;
 use std::io::{self, BufRead};
 use std::path::Path;
@@ -34,7 +35,7 @@ impl TaxonSet {
         })
     }
 
-    pub fn retreive(&self, taxon_name: String) -> usize {
+    pub fn retrieve(&self, taxon_name: String) -> usize {
         *self.to_id.get(&taxon_name).unwrap()
     }
 
@@ -71,6 +72,10 @@ impl Tree {
 
     pub fn postorder(&self) -> PostorderIterator {
         PostorderIterator::new(self)
+    }
+
+    pub fn postorder_from(&self, node: usize) -> PostorderIterator {
+        PostorderIterator::from_node(self, node)
     }
 
     pub fn is_leaf(&self, node: usize) -> bool {
@@ -317,27 +322,11 @@ pub struct ChildrenIterator<'a> {
     current: i32,
 }
 
-pub struct PostorderEdgeIterator<'a> {
-    tree: &'a Tree,
-    traversed_fakeroot: bool,
-    postorder_iterator: PostorderIterator,
-}
-
 impl<'a> ChildrenIterator<'a> {
     pub fn new(tree: &'a Tree, node: usize) -> Self {
         ChildrenIterator {
             tree,
             current: tree.firstchild[node],
-        }
-    }
-}
-
-impl<'a> PostorderEdgeIterator<'a> {
-    pub fn new(tree: &'a Tree) -> Self {
-        PostorderEdgeIterator {
-            tree,
-            traversed_fakeroot: false,
-            postorder_iterator: PostorderIterator::new(tree),
         }
     }
 }
@@ -358,9 +347,13 @@ impl<'a> Iterator for ChildrenIterator<'a> {
 
 impl PostorderIterator {
     pub fn new(tree: &Tree) -> Self {
+        Self::from_node(tree, 0)
+    }
+
+    pub fn from_node(tree: &Tree, node: usize) -> Self {
         let mut s1 = Vec::new();
         let mut s2 = Vec::new();
-        s1.push(0usize);
+        s1.push(node);
         while let Some(n) = s1.pop() {
             s2.push(n);
             tree.children(n).for_each(|c| s1.push(c));
@@ -370,6 +363,21 @@ impl PostorderIterator {
             s2,
         }
     }
+
+    pub fn from_node_excluding(tree: &Tree, node: usize, exclusion: &AHashSet<usize>) -> Self {
+        let mut s1 = Vec::new();
+        let mut s2 = Vec::new();
+        s1.push(node);
+        while let Some(n) = s1.pop() {
+            s2.push(n);
+            tree.children(n).for_each(|c| {
+                if !exclusion.contains(&c) {
+                    s1.push(c);
+                }
+            });
+        }
+        PostorderIterator { s2 }
+    }
 }
 
 impl Iterator for PostorderIterator {
@@ -378,6 +386,83 @@ impl Iterator for PostorderIterator {
     fn next(&mut self) -> Option<Self::Item> {
         self.s2.pop()
     }
+}
+
+pub fn centroid_edge_decomp(
+    tree: &Tree,
+    max_subsets: &Option<usize>,
+    size_threshold: &Option<usize>,
+) -> AHashSet<usize> {
+    if let (None, None) = (max_subsets, size_threshold) {
+        panic!("Either max_subsets or size_threshold must be specified");
+    }
+    let mut cuts = AHashSet::new();
+    cuts.insert(0usize);
+    let mut pq = BinaryHeap::new();
+    pq.push((tree.ntaxa, 0usize));
+    let mut tree_sizes = vec![0u64; tree.taxa.len()];
+    while let Some((size, root)) = pq.pop() {
+        if size_threshold.map_or(false, |s| size <= s) {
+            break;
+        }
+        if let Some(max) = max_subsets {
+            if cuts.len() >= *max {
+                break;
+            }
+        }
+        let it = PostorderIterator::from_node_excluding(tree, root, &cuts);
+        let mut best_inbalance = u64::MAX;
+        let mut best_cut = 0usize;
+        let mut non_leaf = false;
+        for i in it {
+            if i == root {
+                continue;
+            }
+            if tree.is_leaf(i) {
+                tree_sizes[i] = 1;
+            } else {
+                non_leaf = true;
+                tree_sizes[i] = tree
+                    .children(i)
+                    .filter_map(|c| {
+                        if cuts.contains(&c) {
+                            None
+                        } else {
+                            Some(tree_sizes[c])
+                        }
+                    })
+                    .sum();
+                let inbalance = (size as u64 - tree_sizes[i]).abs_diff(tree_sizes[i]);
+                if inbalance < best_inbalance {
+                    best_inbalance = inbalance;
+                    best_cut = i;
+                }
+            }
+        } // finding the best cut
+        if non_leaf {
+            assert_ne!(best_inbalance, u64::MAX, "No cut found");
+        } else {
+            break;
+        }
+        cuts.insert(best_cut);
+        pq.push((size - tree_sizes[best_cut] as usize, root));
+        pq.push((tree_sizes[best_cut] as usize, best_cut));
+        // println!("Decomposed a {} size tree into {} + {}", size, tree_sizes[best_cut], size - tree_sizes[best_cut] as usize);
+    }
+    return cuts;
+}
+
+pub fn cuts_to_subsets(tree: &Tree, cuts: &AHashSet<usize>) -> AHashMap<usize, usize> {
+    let mut res = AHashMap::new();
+    for (i, &c) in cuts.iter().enumerate() {
+        let it = PostorderIterator::from_node_excluding(tree, c, cuts);
+        for j in it {
+            if tree.is_leaf(j) {
+                res.insert(tree.taxa[j] as usize, i);
+            }
+        }
+    }
+    return res;
 }
 
 #[derive(Hash, Eq, PartialEq, Debug, Copy, Clone, Serialize, Tabled)]

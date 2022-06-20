@@ -374,10 +374,10 @@ pub struct WhereResult {
     pub total_rows: usize,
     pub matched_rows: usize,
     #[tabled(display_with = "display_ratio")]
-    pub force_included : (usize, usize),
+    pub force_included: (usize, usize),
 }
 
-fn display_ratio(v : &(usize, usize)) -> String {
+fn display_ratio(v: &(usize, usize)) -> String {
     format!("{}/{}", v.0, v.1)
 }
 
@@ -388,13 +388,14 @@ pub struct PdisResult {
     pub approx: bool,
 }
 
-pub fn parse_sequence_set(files : &[PathBuf]) -> AHashSet<String> {
+pub fn parse_sequence_set(files: &[PathBuf]) -> AHashSet<String> {
     let mut res = AHashSet::new();
     let thread_pool = IoThread::new(2);
     for f in files {
         let mut reader = Reader::new(thread_pool.open(f).unwrap());
         while let Some(result) = reader.next() {
-            let name = String::from_utf8(result.unwrap().head().iter().copied().collect_vec()).unwrap();
+            let name =
+                String::from_utf8(result.unwrap().head().iter().copied().collect_vec()).unwrap();
             res.insert(name);
         }
     }
@@ -445,9 +446,7 @@ pub fn aln_where(
             }
             (Some(false), _, _) => continue,
             (_, Some(false), _) => continue,
-            (_, _, _) => {
-                
-            }
+            (_, _, _) => {}
         }
         writer.write_all(b">").unwrap();
         writer.write_all(r.head()).unwrap();

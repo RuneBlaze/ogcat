@@ -1,20 +1,20 @@
 mod aln;
+mod extract;
 mod fastsp;
 mod ogcat;
 mod tree;
-mod extract;
 
 use crate::fastsp::pretty_spresults;
 use crate::ogcat::RFPrettyOutput;
 use aln::{Approx, CombinedAlnStats};
 use clap::{ArgEnum, Parser, Subcommand};
 use ogcat::TreeCollection;
+use once_cell::sync::Lazy;
 use serde::Serialize;
 use std::fmt::Display;
 use std::fs::File;
-use std::io::{BufWriter, Write, self};
+use std::io::{self, BufWriter, Write};
 use std::path::PathBuf;
-use once_cell::sync::Lazy;
 use tabled::Table;
 use tabled::{builder::Builder, Style};
 
@@ -65,6 +65,15 @@ enum SubCommand {
     TreeStats {
         #[clap()]
         input: PathBuf,
+    },
+
+    TreeDecomp {
+        #[clap()]
+        input: PathBuf,
+        #[clap(short = 'c', long)]
+        max_count: Option<usize>,
+        #[clap(short = 's', long)]
+        max_size: Option<usize>,
     },
 
     /// Compute the sum-of-pairs error of two alignments a la FastSP.
@@ -118,11 +127,11 @@ enum SubCommand {
         inclusion: Vec<PathBuf>,
     },
 
-    AlnExtract{
+    AlnExtract {
         #[clap()]
         input: PathBuf,
         #[clap(short, long, multiple_values = true, default_value = "names")]
-        types : Vec<extract::InfoType>,
+        types: Vec<extract::InfoType>,
     },
 
     /// Mask gappy sites in an alignment
@@ -362,9 +371,7 @@ fn execute_rf_multi(reference: &PathBuf, estimated: &PathBuf, format: Format) {
 fn main() {
     let args = Args::parse();
     let mut out = Lazy::new(|| match args.output {
-        Some(x) => {
-            Box::new(BufWriter::new(File::create(x).unwrap()))
-        }
+        Some(x) => Box::new(BufWriter::new(File::create(x).unwrap())),
         None => Box::new(io::stdout()) as Box<dyn Write>,
     });
     match args.cmd {
@@ -431,10 +438,12 @@ fn main() {
                 }
                 Format::Json => {
                     let formatted_stats = CombinedAlnStats::new(&stats, &p_result);
-                    writeln!(&mut out, 
+                    writeln!(
+                        &mut out,
                         "{}",
                         serde_json::to_string_pretty(&formatted_stats).unwrap()
-                    ).unwrap();
+                    )
+                    .unwrap();
                 }
             }
         }
@@ -472,9 +481,35 @@ fn main() {
                     writeln!(&mut out, "{}", Table::new(&stats).with(Style::modern())).unwrap();
                 }
                 Format::Json => {
-                    writeln!(&mut out, "{}", serde_json::to_string_pretty(&stats).unwrap()).unwrap();
+                    writeln!(
+                        &mut out,
+                        "{}",
+                        serde_json::to_string_pretty(&stats).unwrap()
+                    )
+                    .unwrap();
                 }
             }
+        }
+        SubCommand::TreeDecomp {
+            input,
+            max_count,
+            max_size,
+        } => {
+            assert_eq!(
+                Format::Json,
+                args.format,
+                "none JSON formats not yet implemented"
+            );
+            let collection = TreeCollection::from_newick(input).unwrap();
+            let decomp = ogcat::centroid_edge_decomp(&collection.trees[0], &max_count, &max_size);
+            let labels = ogcat::cuts_to_subsets(&collection.trees[0], &decomp);
+            let mut humanized_clusters: Vec<Vec<&str>> = vec![vec![]; decomp.len()];
+            let ts = &collection.taxon_set;
+            for i in 0..ts.len() {
+                humanized_clusters[labels[&i]].push(&ts.names[i]);
+            }
+            let json = serde_json::to_string_pretty(&humanized_clusters).unwrap();
+            writeln!(&mut out, "{}", json).unwrap();
         }
         SubCommand::Sp {
             reference,
@@ -493,7 +528,8 @@ fn main() {
             let ig_est = ignore_case || ignore_case_est;
             let ig_ref = ignore_case || ignore_case_ref;
             let fastsp_result = if restricted {
-                let oppo = fastsp::calc_fpfn(&estimated, &reference, ig_ref, ig_est, restricted, char);
+                let oppo =
+                    fastsp::calc_fpfn(&estimated, &reference, ig_ref, ig_est, restricted, char);
                 oppo.flip()
             } else {
                 fastsp::calc_fpfn(&reference, &estimated, ig_est, ig_ref, restricted, char)
@@ -503,7 +539,12 @@ fn main() {
                     writeln!(&mut out, "{}", pretty_spresults(&fastsp_result)).unwrap();
                 }
                 Format::Json => {
-                    writeln!(&mut out, "{}", serde_json::to_string_pretty(&fastsp_result).unwrap()).unwrap();
+                    writeln!(
+                        &mut out,
+                        "{}",
+                        serde_json::to_string_pretty(&fastsp_result).unwrap()
+                    )
+                    .unwrap();
                 }
             }
         }
