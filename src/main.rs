@@ -1,14 +1,15 @@
-mod aln;
-mod extract;
-mod fastsp;
-mod ogcat;
-mod tree;
+pub mod aln;
+pub mod extract;
+pub mod fastsp;
+pub mod ogtree;
+pub mod tree;
 
 use crate::fastsp::pretty_spresults;
-use crate::ogcat::RFPrettyOutput;
+use crate::ogtree::*;
 use aln::{Approx, CombinedAlnStats};
 use clap::{ArgEnum, Parser, Subcommand};
-use ogcat::TreeCollection;
+// use ogcat::TreeCollection;
+// use ogcat::ogtree::compare_allpairs;
 use once_cell::sync::Lazy;
 use serde::Serialize;
 use std::fmt::Display;
@@ -175,7 +176,7 @@ impl Display for RFMultiType {
 #[derive(Debug, Serialize)]
 pub struct RFPairResult {
     pub pair: (usize, usize),
-    pub result: ogcat::RFPrettyOutput,
+    pub result: ogtree::RFPrettyOutput,
 }
 
 #[derive(Debug, Serialize)]
@@ -230,7 +231,7 @@ fn execute_rf_allpairs(trees: &[String], format: Format) {
         TreeCollection::from_multiple(trees).unwrap()
     };
     assert!(coll.ngenes() > 1);
-    let res = ogcat::compare_allpairs(&coll);
+    let res = compare_allpairs(&coll);
     let mut paired_results: Vec<RFPairResult> = vec![];
     let mut cnt = 0;
     for i in 0..(coll.ngenes() - 1) {
@@ -268,11 +269,11 @@ fn execute_rf(reference: &PathBuf, estimated: &PathBuf, fast: bool, format: Form
         "Number of taxa in reference and estimated trees do not match"
     );
     let res = if !fast {
-        ogcat::compare_two_trees_amplified(&trees)
+        ogtree::compare_two_trees_amplified(&trees)
     } else {
-        ogcat::compare_two_trees(&trees)
+        ogtree::compare_two_trees(&trees)
     };
-    let pretty = ogcat::RFPrettyOutput::new(res);
+    let pretty = ogtree::RFPrettyOutput::new(res);
     match format {
         Format::Human => {
             let table = Builder::default()
@@ -323,9 +324,9 @@ fn execute_rf_multi(reference: &PathBuf, estimated: &PathBuf, format: Format) {
     }
 
     let rf_outputs = if ngenes > 1 {
-        ogcat::compare_many2many(&trees)
+        ogtree::compare_many2many(&trees)
     } else {
-        ogcat::compare_one2many(&trees)
+        ogtree::compare_one2many(&trees)
     };
     let pretty = rf_outputs
         .iter()
@@ -501,8 +502,8 @@ fn main() {
                 "none JSON formats not yet implemented"
             );
             let collection = TreeCollection::from_newick(input).unwrap();
-            let decomp = ogcat::centroid_edge_decomp(&collection.trees[0], &max_count, &max_size);
-            let labels = ogcat::cuts_to_subsets(&collection.trees[0], &decomp);
+            let decomp = ogtree::centroid_edge_decomp(&collection.trees[0], &max_count, &max_size);
+            let labels = ogtree::cuts_to_subsets(&collection.trees[0], &decomp);
             let mut humanized_clusters: Vec<Vec<&str>> = vec![vec![]; decomp.len() as usize];
             let ts = &collection.taxon_set;
             for i in 0..ts.len() {
