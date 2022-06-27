@@ -28,15 +28,15 @@ where
 
 impl TaxonSet {
     pub fn request(&mut self, taxon_name: String) -> usize {
-        *self.to_id.entry(taxon_name.clone()).or_insert_with(|| {
+            *self.to_id.entry(taxon_name.clone()).or_insert_with(|| {
             self.names.push(taxon_name);
             self.last += 1;
             self.last - 1
         })
     }
 
-    pub fn retrieve(&self, taxon_name: String) -> usize {
-        *self.to_id.get(&taxon_name).unwrap()
+    pub fn retrieve(&self, taxon_name: &str) -> usize {
+        *self.to_id.get(taxon_name).expect("Taxon not found")
     }
 
     pub fn new() -> Self {
