@@ -74,6 +74,10 @@ impl Tree {
         PostorderIterator::new(self)
     }
 
+    pub fn ancestors(&self, node : usize) -> AncestorsIterator {
+        AncestorsIterator::new(self, node)
+    }
+
     pub fn postorder_from(&self, node: usize) -> PostorderIterator {
         PostorderIterator::from_node(self, node)
     }
@@ -317,6 +321,42 @@ pub struct PostorderIterator {
     s2: Vec<usize>,
 }
 
+pub struct AncestorsIterator<'a> {
+    tree : &'a Tree,
+    current: i32,
+}
+
+impl<'a> AncestorsIterator<'a> {
+    pub fn new(tree: &'a Tree, taxon: usize) -> Self {
+        let n = taxon;
+        if n == 0usize {
+            return AncestorsIterator {
+                tree,
+                current: 0,
+            };
+        } else {
+            return AncestorsIterator {
+                tree,
+                current: tree.parents[n] as i32,
+            };
+        }
+    }
+}
+
+impl<'a> Iterator for AncestorsIterator<'a> {
+    type Item = usize;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.current == 0 {
+            return None;
+        } else {
+            let res = self.current as usize;
+            self.current = self.tree.parents[res] as i32;
+            return Some(res);
+        }
+    }
+}
+
 pub struct ChildrenIterator<'a> {
     tree: &'a Tree,
     current: i32,
@@ -401,6 +441,15 @@ pub fn centroid_edge_decomp(
     let mut pq = BinaryHeap::new();
     pq.push((tree.ntaxa, 0usize));
     let mut tree_sizes = vec![0u64; tree.taxa.len()];
+    for i in tree.postorder() {
+        if tree.is_leaf(i) {
+            tree_sizes[i] = 1;
+        } else {
+            tree.children(i).for_each(|c| {
+                tree_sizes[i] += tree_sizes[c];
+            });
+        }
+    }
     while let Some((size, root)) = pq.pop() {
         if size_threshold.map_or(false, |s| size <= s) {
             break;
@@ -419,19 +468,9 @@ pub fn centroid_edge_decomp(
                 continue;
             }
             if tree.is_leaf(i) {
-                tree_sizes[i] = 1;
+                
             } else {
                 non_leaf = true;
-                tree_sizes[i] = tree
-                    .children(i)
-                    .filter_map(|c| {
-                        if cuts.contains(&c) {
-                            None
-                        } else {
-                            Some(tree_sizes[c])
-                        }
-                    })
-                    .sum();
                 let inbalance = (size as u64 - tree_sizes[i]).abs_diff(tree_sizes[i]);
                 if inbalance < best_inbalance {
                     best_inbalance = inbalance;
@@ -444,21 +483,27 @@ pub fn centroid_edge_decomp(
         } else {
             break;
         }
+        for a in tree.ancestors(best_cut) {
+            if a == root {
+                break;
+            }
+            tree_sizes[a] -= tree_sizes[best_cut];
+        }
         cuts.insert(best_cut);
-        pq.push((size - tree_sizes[best_cut] as usize, root));
         pq.push((tree_sizes[best_cut] as usize, best_cut));
+        pq.push((size - tree_sizes[best_cut] as usize, root));
         // println!("Decomposed a {} size tree into {} + {}", size, tree_sizes[best_cut], size - tree_sizes[best_cut] as usize);
     }
     return cuts;
 }
 
-pub fn cuts_to_subsets(tree: &Tree, cuts: &AHashSet<usize>) -> AHashMap<usize, usize> {
-    let mut res = AHashMap::new();
+pub fn cuts_to_subsets(tree: &Tree, cuts: &AHashSet<usize>) -> Vec<usize> {
+    let mut res = vec![0usize; tree.ntaxa];
     for (i, &c) in cuts.iter().enumerate() {
         let it = PostorderIterator::from_node_excluding(tree, c, cuts);
         for j in it {
             if tree.is_leaf(j) {
-                res.insert(tree.taxa[j] as usize, i);
+                res[tree.taxa[j] as usize] = i;
             }
         }
     }

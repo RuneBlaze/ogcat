@@ -503,10 +503,10 @@ fn main() {
             let collection = TreeCollection::from_newick(input).unwrap();
             let decomp = ogcat::centroid_edge_decomp(&collection.trees[0], &max_count, &max_size);
             let labels = ogcat::cuts_to_subsets(&collection.trees[0], &decomp);
-            let mut humanized_clusters: Vec<Vec<&str>> = vec![vec![]; decomp.len()];
+            let mut humanized_clusters: Vec<Vec<&str>> = vec![vec![]; decomp.len() as usize];
             let ts = &collection.taxon_set;
             for i in 0..ts.len() {
-                humanized_clusters[labels[&i]].push(&ts.names[i]);
+                humanized_clusters[labels[i]].push(&ts.names[i]);
             }
             let json = serde_json::to_string_pretty(&humanized_clusters).unwrap();
             writeln!(&mut out, "{}", json).unwrap();
