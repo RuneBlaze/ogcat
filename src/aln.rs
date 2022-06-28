@@ -1,24 +1,26 @@
-use ahash::{AHashSet, AHashMap};
+use ahash::{AHashMap, AHashSet};
+use anyhow::bail;
 use itertools::Itertools;
 
 use autocompress::{iothread::IoThread, CompressionLevel};
 use clap::ArgEnum;
-use similar::{ChangeTag, TextDiff};
 use rand::prelude::ThreadRng;
 use rand::{seq::*, Rng};
 use rayon::prelude::*;
 use seq_io::fasta::{Reader, RefRecord};
 use seq_io::{prelude::*, PositionStore};
 use serde::Serialize;
-use std::collections::BTreeMap;
+use similar::{ChangeTag, TextDiff};
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Display;
+use tabled::builder::Builder;
 
 // needed to import necessary traits
 use std::{
     io::Write,
     path::{Path, PathBuf},
 };
-use tabled::Tabled;
+use tabled::{Style, Table, Tabled};
 
 const AA_WILDCARD: u8 = b'X';
 const NC_WILDCARD: u8 = b'N';
@@ -343,7 +345,7 @@ impl AlphabetGuesser {
 pub struct MaskResult {
     pub total_columns: usize,
     pub masked_columns: usize,
-    pub rest_columns : usize,
+    pub rest_columns: usize,
     pub total_rows: usize,
 }
 
@@ -525,48 +527,126 @@ pub fn aln_mask(
     }
 }
 
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ArgEnum, Debug)]
+pub enum AlnDiffMode {
+    Udiff,
+    Set,
+    Fragile,
+}
+
+#[derive(Clone, PartialEq, Serialize)]
+pub struct AlnDiffSummary {
+    different: Vec<String>,
+    lhs_only: Vec<String>,
+    rhs_only: Vec<String>,
+}
+
+pub fn aln_diff_summary_table(summary: &AlnDiffSummary) -> Table {
+    let mut b = Builder::default().set_columns(["Name", "Discrepancy"]);
+    for d in &summary.different {
+        b = b.add_record([d, "different"]);
+    }
+    for d in &summary.lhs_only {
+        b = b.add_record([d, "lhs only"]);
+    }
+    for d in &summary.rhs_only {
+        b = b.add_record([d, "rhs only"]);
+    }
+    b.build().with(Style::modern())
+}
+
 pub fn aln_diff(
     lhs: &PathBuf,
     rhs: &PathBuf,
     degap: bool,
-) -> anyhow::Result<()> {
-    let mut lhs_seqs : BTreeMap<String, String> = BTreeMap::new();
-    let mut rhs_seqs : BTreeMap<String, String> = BTreeMap::new();
+    mode: AlnDiffMode,
+) -> anyhow::Result<Option<AlnDiffSummary>> {
+    let mut lhs_seqs: BTreeMap<String, String> = BTreeMap::new();
+    let mut rhs_seqs: BTreeMap<String, String> = BTreeMap::new();
     let thread_pool = IoThread::new(2);
     let mut r1 = Reader::new(thread_pool.open(lhs)?);
     while let Some(r) = r1.next() {
         let record = r?;
         let name = String::from_utf8(record.head().to_vec())?;
         let seq = if degap {
-            String::from_utf8(record.full_seq().iter().filter(|it| **it != b'-').copied().collect_vec())?
+            String::from_utf8(
+                record
+                    .full_seq()
+                    .iter()
+                    .filter(|it| **it != b'-')
+                    .copied()
+                    .collect_vec(),
+            )?
         } else {
             String::from_utf8(record.full_seq().to_vec())?
         };
         lhs_seqs.insert(name, seq);
-    };
+    }
     let mut r2 = Reader::new(thread_pool.open(rhs)?);
     while let Some(r) = r2.next() {
         let record = r?;
         let name = String::from_utf8(record.head().to_vec())?;
         let seq = if degap {
-            String::from_utf8(record.full_seq().iter().filter(|it| **it != b'-').copied().collect_vec())?
+            String::from_utf8(
+                record
+                    .full_seq()
+                    .iter()
+                    .filter(|it| **it != b'-')
+                    .copied()
+                    .collect_vec(),
+            )?
         } else {
             String::from_utf8(record.full_seq().to_vec())?
         };
         rhs_seqs.insert(name, seq);
-    };
-    let mut lhs_buf = String::new();
-    let mut rhs_buf = String::new();
-    for (k, v) in lhs_seqs {
-        lhs_buf.push_str(&format!(">{}\n{}\n", k, v));
     }
-    for (k, v) in rhs_seqs {
-        rhs_buf.push_str(&format!(">{}\n{}\n", k, v));
+    match mode {
+        AlnDiffMode::Udiff => {
+            let mut lhs_buf = String::new();
+            let mut rhs_buf = String::new();
+            for (k, v) in lhs_seqs {
+                lhs_buf.push_str(&format!(">{}\n{}\n", k, v));
+            }
+            for (k, v) in rhs_seqs {
+                rhs_buf.push_str(&format!(">{}\n{}\n", k, v));
+            }
+            let diff = TextDiff::from_lines(&lhs_buf, &rhs_buf);
+            print!(
+                "{}",
+                diff.unified_diff().context_radius(1).header("lhs", "rhs")
+            );
+        }
+        AlnDiffMode::Set => {
+            let lhs_keys = BTreeSet::from_iter(lhs_seqs.keys());
+            let rhs_keys = BTreeSet::from_iter(rhs_seqs.keys());
+            let shared = lhs_keys.intersection(&rhs_keys);
+            let diff_lhs = lhs_keys.difference(&rhs_keys);
+            let diff_rhs = rhs_keys.difference(&lhs_keys);
+            let mut different: Vec<String> = vec![];
+            let mut lhs_only: Vec<String> = vec![];
+            let mut rhs_only: Vec<String> = vec![];
+            for s in shared {
+                if lhs_seqs.get(*s) != rhs_seqs.get(*s) {
+                    different.push(s.to_string());
+                }
+            }
+            for s in diff_lhs {
+                lhs_only.push(s.to_string());
+            }
+            for s in diff_rhs {
+                rhs_only.push(s.to_string());
+            }
+            return Ok(Some(AlnDiffSummary {
+                different,
+                lhs_only,
+                rhs_only,
+            }));
+        }
+        AlnDiffMode::Fragile => {
+            if lhs_seqs != rhs_seqs {
+                bail!("Two alignments are not equal");
+            }
+        }
     }
-    let diff = TextDiff::from_lines(
-        &lhs_buf,
-        &rhs_buf,
-    );
-    print!("{}",diff.unified_diff().context_radius(1).header("lhs", "rhs"));
-    Ok(())
+    Ok(None)
 }

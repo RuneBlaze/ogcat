@@ -7,11 +7,10 @@ pub mod tree;
 use crate::fastsp::pretty_spresults;
 use crate::ogtree::*;
 use aln::{Approx, CombinedAlnStats};
+use anyhow::Ok;
 use clap::{ArgEnum, Parser, Subcommand};
 use itertools::Itertools;
-use ogcat::aln::aln_diff;
-// use ogcat::TreeCollection;
-// use ogcat::ogtree::compare_allpairs;
+use ogcat::aln::{aln_diff, aln_diff_summary_table, AlnDiffMode};
 use once_cell::sync::Lazy;
 use serde::Serialize;
 use std::fmt::Display;
@@ -142,6 +141,8 @@ enum SubCommand {
         input: Vec<PathBuf>,
         #[clap(short, long)]
         keep_gaps: bool,
+        #[clap(long, arg_enum, default_value_t = AlnDiffMode::Udiff)]
+        mode: AlnDiffMode,
     },
 
     /// Mask gappy sites in an alignment
@@ -378,7 +379,7 @@ fn execute_rf_multi(reference: &PathBuf, estimated: &PathBuf, format: Format) {
     }
 }
 
-fn main() {
+fn main() -> anyhow::Result<()> {
     let args = Args::parse();
     let mut out = Lazy::new(|| match args.output {
         Some(x) => Box::new(BufWriter::new(File::create(x).unwrap())),
@@ -574,13 +575,29 @@ fn main() {
                 }
             }
         }
-        SubCommand::AlnDiff { input, keep_gaps } => {
+        SubCommand::AlnDiff {
+            input,
+            keep_gaps,
+            mode,
+        } => {
+            assert_eq!(input.len(), 2, "only two files are currently supported");
             for (l, r) in input.iter().tuple_combinations() {
-                aln_diff(l, r, !keep_gaps).unwrap();
+                let r = aln_diff(l, r, !keep_gaps, mode)?;
+                if let Some(s) = r {
+                    match args.format {
+                        Format::Human => {
+                            writeln!(&mut out, "{}", aln_diff_summary_table(&s))?;
+                        }
+                        Format::Json => {
+                            writeln!(&mut out, "{}", serde_json::to_string_pretty(&s).unwrap())?;
+                        }
+                    }
+                }
             }
         }
         _ => {
             panic!("Unsupported subcommand");
         }
     }
+    Ok(())
 }
