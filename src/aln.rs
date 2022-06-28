@@ -1,15 +1,16 @@
-use ahash::AHashSet;
+use ahash::{AHashSet, AHashMap};
 use itertools::Itertools;
 
 use autocompress::{iothread::IoThread, CompressionLevel};
 use clap::ArgEnum;
+use similar::{ChangeTag, TextDiff};
 use rand::prelude::ThreadRng;
 use rand::{seq::*, Rng};
 use rayon::prelude::*;
 use seq_io::fasta::{Reader, RefRecord};
 use seq_io::{prelude::*, PositionStore};
 use serde::Serialize;
-
+use std::collections::BTreeMap;
 use std::fmt::Display;
 
 // needed to import necessary traits
@@ -18,16 +19,45 @@ use std::{
     path::{Path, PathBuf},
 };
 use tabled::Tabled;
-// use thread_io::read::reader;
 
 const AA_WILDCARD: u8 = b'X';
 const NC_WILDCARD: u8 = b'N';
+
+pub fn write_record<W>(writer: &mut W, head: &[u8], seq: &[u8]) -> anyhow::Result<()>
+where
+    W: Write,
+{
+    writer.write_all(b">")?;
+    writer.write_all(head)?;
+    writer.write_all(b"\n")?;
+    seq.chunks(60)
+        .try_for_each::<_, anyhow::Result<()>>(|chunk| {
+            writer.write_all(chunk)?;
+            writer.write_all(b"\n")?;
+            Ok(())
+        })?;
+    Ok(())
+}
 
 #[derive(Debug, Eq, PartialEq, Clone, Copy, Serialize)]
 pub enum Alphabet {
     AminoAcid,
     Nucleotide,
 }
+
+// #[derive(PartialEq)]
+// struct PrettyRecord {
+//     pub name : String,
+//     pub seq : String,
+// }
+
+// impl PrettyRecord {
+//     pub fn try_from_record(r : &RefRecord) -> anyhow::Result<Self> {
+//         let name = String::from_utf8(r.head().to_vec())?;
+//         let seq = String::from_utf8(r.full_seq().to_vec())?;
+//         Ok(Self { name, seq })
+//     }
+// }
 
 impl Display for Alphabet {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -187,59 +217,6 @@ impl AlignmentSampler {
     }
 }
 
-// pub fn approx_pdis(filename: &PathBuf, alph: Alphabet) -> Result<PdisResult, &'static str> {
-//     let mut rng = rand::thread_rng();
-//     let thread_pool = IoThread::new(2);
-//     let mut reader = Reader::new(thread_pool.open(filename).unwrap());
-//     let mut i = 0;
-//     let s = 9000;
-//     let mut records: Vec<Vec<u8>> = vec![];
-//     //reservoir sampling
-//     while let Some(result) = reader.next() {
-//         let r = result.unwrap();
-//         if i < s {
-//             records.push(r.to_owned_record().seq);
-//         } else {
-//             let j = rng.gen_range(0..(i + 1));
-//             if j < s {
-//                 records[j] = r.to_owned_record().seq;
-//             }
-//         }
-//         i += 1;
-//     }
-
-//     let mut avg_pdis_samples: Vec<f64> = vec![];
-//     let mut max_pdis_samples: Vec<f64> = vec![];
-//     if i <= s {
-//         all_pairs_p_distance(&records, alph).map(|(a, b)| {
-//             avg_pdis_samples.push(a);
-//             max_pdis_samples.push(b);
-//         });
-//     } else {
-//         records.shuffle(&mut rng);
-//         let samples = records
-//             .chunks(1000)
-//             .flat_map(|it| all_pairs_p_distance(it, alph));
-//         samples.for_each(|(l, r)| {
-//             avg_pdis_samples.push(l);
-//             max_pdis_samples.push(r);
-//         });
-//     }
-//     if avg_pdis_samples.is_empty() {
-//         Err("No valid samples obtained")
-//     } else {
-//         // compute the median of the avg pdis
-//         // the max of the max pdis
-//         avg_pdis_samples.sort_by(|a, b| a.partial_cmp(b).unwrap());
-//         let avg_pdis = avg_pdis_samples[avg_pdis_samples.len() / 2];
-//         let max_pdis = max_pdis_samples
-//             .iter()
-//             .copied()
-//             .fold(f64::NEG_INFINITY, f64::max);
-//         Ok(PdisResult { avg_pdis, max_pdis })
-//     }
-// }
-
 #[derive(Debug, Serialize)]
 pub struct CombinedAlnStats {
     alph: Alphabet,
@@ -366,6 +343,7 @@ impl AlphabetGuesser {
 pub struct MaskResult {
     pub total_columns: usize,
     pub masked_columns: usize,
+    pub rest_columns : usize,
     pub total_rows: usize,
 }
 
@@ -448,13 +426,7 @@ pub fn aln_where(
             (_, Some(false), _) => continue,
             (_, _, _) => {}
         }
-        writer.write_all(b">").unwrap();
-        writer.write_all(r.head()).unwrap();
-        writer.write_all(b"\n").unwrap();
-        buf.chunks(60).for_each(|chunk| {
-            writer.write_all(chunk).unwrap();
-            writer.write_all(b"\n").unwrap();
-        });
+        write_record(&mut writer, r.head(), &buf).unwrap();
         matched += 1;
     }
     WhereResult {
@@ -542,17 +514,59 @@ pub fn aln_mask(
                 pos += 1;
             }
         }
-        writer.write_all(b">").unwrap();
-        writer.write_all(r.head()).unwrap();
-        writer.write_all(b"\n").unwrap();
-        buf.chunks(60).for_each(|chunk| {
-            writer.write_all(chunk).unwrap();
-            writer.write_all(b"\n").unwrap();
-        });
+        write_record(&mut writer, r.head(), &buf).unwrap();
     }
+    let removed = remove.iter().filter(|x| **x).count();
     MaskResult {
         total_columns: width,
-        masked_columns: remove.iter().filter(|x| **x).count(),
+        masked_columns: removed,
+        rest_columns: width - removed,
         total_rows: height,
     }
+}
+
+pub fn aln_diff(
+    lhs: &PathBuf,
+    rhs: &PathBuf,
+    degap: bool,
+) -> anyhow::Result<()> {
+    let mut lhs_seqs : BTreeMap<String, String> = BTreeMap::new();
+    let mut rhs_seqs : BTreeMap<String, String> = BTreeMap::new();
+    let thread_pool = IoThread::new(2);
+    let mut r1 = Reader::new(thread_pool.open(lhs)?);
+    while let Some(r) = r1.next() {
+        let record = r?;
+        let name = String::from_utf8(record.head().to_vec())?;
+        let seq = if degap {
+            String::from_utf8(record.full_seq().iter().filter(|it| **it != b'-').copied().collect_vec())?
+        } else {
+            String::from_utf8(record.full_seq().to_vec())?
+        };
+        lhs_seqs.insert(name, seq);
+    };
+    let mut r2 = Reader::new(thread_pool.open(rhs)?);
+    while let Some(r) = r2.next() {
+        let record = r?;
+        let name = String::from_utf8(record.head().to_vec())?;
+        let seq = if degap {
+            String::from_utf8(record.full_seq().iter().filter(|it| **it != b'-').copied().collect_vec())?
+        } else {
+            String::from_utf8(record.full_seq().to_vec())?
+        };
+        rhs_seqs.insert(name, seq);
+    };
+    let mut lhs_buf = String::new();
+    let mut rhs_buf = String::new();
+    for (k, v) in lhs_seqs {
+        lhs_buf.push_str(&format!(">{}\n{}\n", k, v));
+    }
+    for (k, v) in rhs_seqs {
+        rhs_buf.push_str(&format!(">{}\n{}\n", k, v));
+    }
+    let diff = TextDiff::from_lines(
+        &lhs_buf,
+        &rhs_buf,
+    );
+    print!("{}",diff.unified_diff().context_radius(1).header("lhs", "rhs"));
+    Ok(())
 }

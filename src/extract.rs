@@ -1,17 +1,9 @@
-use autocompress::{iothread::IoThread};
+use autocompress::iothread::IoThread;
 use clap::ArgEnum;
 use itertools::Itertools;
-use seq_io::{
-    fasta::{Reader},
-    BaseRecord,
-};
+use seq_io::{fasta::Reader, BaseRecord};
 use serde::Serialize;
-use std::{
-    fmt::Display,
-    io::Write,
-    path::{Path},
-    str::FromStr,
-};
+use std::{fmt::Display, io::Write, path::Path, str::FromStr};
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ArgEnum, Debug, Serialize)]
 pub enum InfoType {

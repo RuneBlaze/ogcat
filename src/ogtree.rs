@@ -28,7 +28,7 @@ where
 
 impl TaxonSet {
     pub fn request(&mut self, taxon_name: String) -> usize {
-            *self.to_id.entry(taxon_name.clone()).or_insert_with(|| {
+        *self.to_id.entry(taxon_name.clone()).or_insert_with(|| {
             self.names.push(taxon_name);
             self.last += 1;
             self.last - 1
@@ -74,7 +74,7 @@ impl Tree {
         PostorderIterator::new(self)
     }
 
-    pub fn ancestors(&self, node : usize) -> AncestorsIterator {
+    pub fn ancestors(&self, node: usize) -> AncestorsIterator {
         AncestorsIterator::new(self, node)
     }
 
@@ -322,7 +322,7 @@ pub struct PostorderIterator {
 }
 
 pub struct AncestorsIterator<'a> {
-    tree : &'a Tree,
+    tree: &'a Tree,
     current: i32,
 }
 
@@ -330,10 +330,7 @@ impl<'a> AncestorsIterator<'a> {
     pub fn new(tree: &'a Tree, taxon: usize) -> Self {
         let n = taxon;
         if n == 0usize {
-            return AncestorsIterator {
-                tree,
-                current: 0,
-            };
+            return AncestorsIterator { tree, current: 0 };
         } else {
             return AncestorsIterator {
                 tree,
@@ -468,7 +465,6 @@ pub fn centroid_edge_decomp(
                 continue;
             }
             if tree.is_leaf(i) {
-                
             } else {
                 non_leaf = true;
                 let inbalance = (size as u64 - tree_sizes[i]).abs_diff(tree_sizes[i]);

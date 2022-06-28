@@ -8,6 +8,8 @@ use crate::fastsp::pretty_spresults;
 use crate::ogtree::*;
 use aln::{Approx, CombinedAlnStats};
 use clap::{ArgEnum, Parser, Subcommand};
+use itertools::Itertools;
+use ogcat::aln::aln_diff;
 // use ogcat::TreeCollection;
 // use ogcat::ogtree::compare_allpairs;
 use once_cell::sync::Lazy;
@@ -133,6 +135,13 @@ enum SubCommand {
         input: PathBuf,
         #[clap(short, long, multiple_values = true, default_value = "names")]
         types: Vec<extract::InfoType>,
+    },
+
+    AlnDiff {
+        #[clap(multiple_values = true)]
+        input: Vec<PathBuf>,
+        #[clap(short, long)]
+        keep_gaps: bool,
     },
 
     /// Mask gappy sites in an alignment
@@ -563,6 +572,11 @@ fn main() {
                 Format::Json => {
                     writeln!(&mut out, "{}", serde_json::to_string_pretty(&res).unwrap()).unwrap();
                 }
+            }
+        }
+        SubCommand::AlnDiff { input, keep_gaps } => {
+            for (l, r) in input.iter().tuple_combinations() {
+                aln_diff(l, r, !keep_gaps).unwrap();
             }
         }
         _ => {
