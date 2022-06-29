@@ -201,13 +201,13 @@ pub fn calc_fpfn(
             cnt
         })
         .sum::<u64>();
-    return SpResult::new(
+    SpResult::new(
         shared_homologies,
         ref_homologies,
         est_homologies,
         ref_true_columns.into(),
         est_true_columns.into(),
-    );
+    )
 }
 
 fn format_percentage(d: &f64) -> String {

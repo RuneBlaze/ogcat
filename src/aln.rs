@@ -1,7 +1,6 @@
-use ahash::{AHashMap, AHashSet};
+use ahash::{AHashSet};
 use anyhow::bail;
 use itertools::Itertools;
-
 use autocompress::{iothread::IoThread, CompressionLevel};
 use clap::ArgEnum;
 use rand::prelude::ThreadRng;
@@ -10,7 +9,7 @@ use rayon::prelude::*;
 use seq_io::fasta::{Reader, RefRecord};
 use seq_io::{prelude::*, PositionStore};
 use serde::Serialize;
-use similar::{ChangeTag, TextDiff};
+use similar::{TextDiff};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Display;
 use tabled::builder::Builder;
@@ -379,7 +378,7 @@ pub fn parse_sequence_set(files: &[PathBuf]) -> AHashSet<String> {
             res.insert(name);
         }
     }
-    return res;
+    res
 }
 
 pub fn aln_where(

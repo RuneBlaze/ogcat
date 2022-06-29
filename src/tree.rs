@@ -16,16 +16,16 @@ impl TreeStats {
     pub fn new(tree: &Tree) -> Self {
         let inodes = tree.num_nodes() - tree.ntaxa;
         let iedges = inodes - 1;
-        return TreeStats {
+        TreeStats {
             ntaxa: tree.ntaxa,
             num_inodes: inodes,
             num_iedges: iedges,
             resolution: iedges as f64 / (tree.ntaxa - 3) as f64,
             rooted: tree.fake_root,
-        };
+        }
     }
 }
 
 pub fn tree_stats(collection: &TreeCollection) -> Vec<TreeStats> {
-    collection.trees.iter().map(|t| TreeStats::new(t)).collect()
+    collection.trees.iter().map(TreeStats::new).collect()
 }

@@ -1,4 +1,4 @@
-use ahash::{AHashMap, AHashSet};
+use ahash::{AHashSet};
 use rand::prelude::*;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use serde::Serialize;
@@ -94,7 +94,7 @@ impl Tree {
     }
 
     pub fn num_nodes(&self) -> usize {
-        return self.taxa.len() - if self.fake_root { 1 } else { 0 };
+        self.taxa.len() - if self.fake_root { 1 } else { 0 }
     }
 
     pub fn xor_clades(&self, transl: &Vec<u64>, universe: u64) -> HashSet<u64> {
@@ -330,12 +330,12 @@ impl<'a> AncestorsIterator<'a> {
     pub fn new(tree: &'a Tree, taxon: usize) -> Self {
         let n = taxon;
         if n == 0usize {
-            return AncestorsIterator { tree, current: 0 };
+            AncestorsIterator { tree, current: 0 }
         } else {
-            return AncestorsIterator {
+            AncestorsIterator {
                 tree,
                 current: tree.parents[n] as i32,
-            };
+            }
         }
     }
 }
@@ -345,11 +345,11 @@ impl<'a> Iterator for AncestorsIterator<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.current == 0 {
-            return None;
+            None
         } else {
             let res = self.current as usize;
             self.current = self.tree.parents[res] as i32;
-            return Some(res);
+            Some(res)
         }
     }
 }
@@ -490,7 +490,7 @@ pub fn centroid_edge_decomp(
         pq.push((size - tree_sizes[best_cut] as usize, root));
         // println!("Decomposed a {} size tree into {} + {}", size, tree_sizes[best_cut], size - tree_sizes[best_cut] as usize);
     }
-    return cuts;
+    cuts
 }
 
 pub fn cuts_to_subsets(tree: &Tree, cuts: &AHashSet<usize>) -> Vec<usize> {
@@ -503,7 +503,7 @@ pub fn cuts_to_subsets(tree: &Tree, cuts: &AHashSet<usize>) -> Vec<usize> {
             }
         }
     }
-    return res;
+    res
 }
 
 #[derive(Hash, Eq, PartialEq, Debug, Copy, Clone, Serialize, Tabled)]

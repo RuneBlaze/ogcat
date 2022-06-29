@@ -48,6 +48,6 @@ where
             names.push(name);
         }
     }
-    let info = AlnInfo { names };
-    return info;
+    
+    AlnInfo { names }
 }

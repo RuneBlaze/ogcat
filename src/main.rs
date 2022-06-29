@@ -69,6 +69,7 @@ enum SubCommand {
         input: PathBuf,
     },
 
+    /// Centroid-edge decomposition of a tree
     TreeDecomp {
         #[clap()]
         input: PathBuf,
@@ -128,7 +129,8 @@ enum SubCommand {
         #[clap(long = "include", multiple_values = true)]
         inclusion: Vec<PathBuf>,
     },
-
+    
+    /// Extract names or other information from an alignment
     AlnExtract {
         #[clap()]
         input: PathBuf,
@@ -136,6 +138,7 @@ enum SubCommand {
         types: Vec<extract::InfoType>,
     },
 
+    /// Compares alignment identity (by default sans gaps)
     AlnDiff {
         #[clap(multiple_values = true)]
         input: Vec<PathBuf>,
