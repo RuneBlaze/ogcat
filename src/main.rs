@@ -13,15 +13,17 @@ use itertools::Itertools;
 use ogcat::aln::{aln_diff, aln_diff_summary_table, AlnDiffMode};
 use once_cell::sync::Lazy;
 use serde::Serialize;
+use shadow_rs::shadow;
 use std::fmt::Display;
 use std::fs::File;
 use std::io::{self, BufWriter, Write};
 use std::path::PathBuf;
 use tabled::Table;
 use tabled::{builder::Builder, Style};
+shadow!(build);
 
 #[derive(Parser, Debug)]
-#[clap(author, version, about)]
+#[clap(author, version, about, long_version = build::CLAP_LONG_VERSION)]
 struct Args {
     #[clap(subcommand)]
     cmd: SubCommand,
@@ -129,7 +131,7 @@ enum SubCommand {
         #[clap(long = "include", multiple_values = true)]
         inclusion: Vec<PathBuf>,
     },
-    
+
     /// Extract names or other information from an alignment
     AlnExtract {
         #[clap()]

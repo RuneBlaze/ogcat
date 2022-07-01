@@ -1,15 +1,15 @@
-use ahash::{AHashSet};
+use ahash::AHashSet;
 use anyhow::bail;
-use itertools::Itertools;
 use autocompress::{iothread::IoThread, CompressionLevel};
 use clap::ArgEnum;
+use itertools::Itertools;
 use rand::prelude::ThreadRng;
 use rand::{seq::*, Rng};
 use rayon::prelude::*;
 use seq_io::fasta::{Reader, RefRecord};
 use seq_io::{prelude::*, PositionStore};
 use serde::Serialize;
-use similar::{TextDiff};
+use similar::TextDiff;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Display;
 use tabled::builder::Builder;

@@ -48,6 +48,5 @@ where
             names.push(name);
         }
     }
-    
     AlnInfo { names }
 }
