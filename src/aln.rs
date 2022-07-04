@@ -46,20 +46,6 @@ pub enum Alphabet {
     Nucleotide,
 }
 
-// #[derive(PartialEq)]
-// struct PrettyRecord {
-//     pub name : String,
-//     pub seq : String,
-// }
-
-// impl PrettyRecord {
-//     pub fn try_from_record(r : &RefRecord) -> anyhow::Result<Self> {
-//         let name = String::from_utf8(r.head().to_vec())?;
-//         let seq = String::from_utf8(r.full_seq().to_vec())?;
-//         Ok(Self { name, seq })
-//     }
-// }
-
 impl Display for Alphabet {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -123,6 +109,7 @@ pub struct AlnSimpleStats {
     pub width: usize,
     pub rows: usize,
     pub avg_sequence_length: f64,
+    pub median_sequence_length: f64,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ArgEnum, Debug)]
@@ -225,6 +212,7 @@ pub struct CombinedAlnStats {
     rows: usize,
     gap_ratio: f64,
     avg_seq_length: f64,
+    median_seq_length: f64,
     avg_p_dis: Option<f64>,
     max_p_dis: Option<f64>,
     p_dis_approx: Option<bool>,
@@ -238,6 +226,7 @@ impl CombinedAlnStats {
             rows: stats.rows,
             gap_ratio: stats.gap_cells as f64 / stats.total_cells as f64,
             avg_seq_length: stats.avg_sequence_length,
+            median_seq_length: stats.median_sequence_length,
             avg_p_dis: pdis.as_ref().map(|p| p.avg_pdis),
             max_p_dis: pdis.as_ref().map(|p| p.max_pdis),
             p_dis_approx: pdis.as_ref().map(|p| p.approx),
@@ -257,7 +246,7 @@ where
     let mut gap_cells = 0u64;
     let mut width = 0;
     let mut rows = 0;
-    let mut seq_lengths: Vec<u64> = vec![];
+    let mut seq_lengths: Vec<u32> = vec![];
     let thread_pool = IoThread::new(3);
     let mut reader = Reader::new(thread_pool.open(filename).unwrap());
     let mut guesser = AlphabetGuesser::new();
@@ -290,7 +279,7 @@ where
             assert_eq!(width, record_width);
         }
         rows += 1;
-        seq_lengths.push(record_width as u64 - local_gaps as u64);
+        seq_lengths.push(record_width as u32 - local_gaps as u32);
     }
     let stats = AlnSimpleStats {
         alph: guesser.alph(),
@@ -298,7 +287,8 @@ where
         gap_cells: gap_cells as usize,
         width,
         rows,
-        avg_sequence_length: seq_lengths.iter().sum::<u64>() as f64 / seq_lengths.len() as f64,
+        avg_sequence_length: seq_lengths.iter().sum::<u32>() as f64 / seq_lengths.len() as f64,
+        median_sequence_length: medians::r_median(&seq_lengths),
     };
     let pdis_result = match (p_dis, approx) {
         (false, _) => None,

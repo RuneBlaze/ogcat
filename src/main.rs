@@ -425,7 +425,8 @@ fn main() -> anyhow::Result<()> {
                             "columns",
                             "rows",
                             "gap_ratio",
-                            "avg_seq_length",
+                            "avg_seq_len",
+                            "med_seq_len",
                             "avg_p_dis",
                             "max_p_dis",
                             "p_dis_approx",
@@ -439,6 +440,7 @@ fn main() -> anyhow::Result<()> {
                                 (stats.gap_cells as f64) / stats.total_cells as f64 * 100.0
                             ),
                             format!("{:.4}", stats.avg_sequence_length),
+                            format!("{:.2}", stats.median_sequence_length),
                             p_result.as_ref().map_or("Skipped".to_string(), |res| {
                                 format!("{:.4}", res.avg_pdis)
                             }),

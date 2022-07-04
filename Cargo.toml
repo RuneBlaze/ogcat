@@ -24,6 +24,7 @@ ahash = "0.7.6"
 roaring = "0.9.0"
 similar = "2.1.0"
 shadow-rs = "0.11.0"
+medians = "0.1.3"
 
 [build-dependencies]
 shadow-rs = "0.11.0"
