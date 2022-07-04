@@ -234,6 +234,20 @@ impl CombinedAlnStats {
     }
 }
 
+fn median_of(coll: &mut [u64]) -> f64 {
+    if coll.len() % 2 != 0 {
+        coll.select_nth_unstable(coll.len() / 2);
+        coll[coll.len() / 2] as u32 as f64
+    } else {
+        let l = coll.len() / 2 - 1;
+        coll.select_nth_unstable(l);
+        let l_v = coll[l] as u32;
+        coll.select_nth_unstable(l + 1);
+        let r_v = coll[l + 1] as u32;
+        (l_v + r_v) as f64 / 2.0
+    }
+}
+
 pub fn aln_linear_stats<P>(
     filename: P,
     p_dis: bool,
@@ -246,7 +260,7 @@ where
     let mut gap_cells = 0u64;
     let mut width = 0;
     let mut rows = 0;
-    let mut seq_lengths: Vec<u32> = vec![];
+    let mut seq_lengths: Vec<u64> = vec![];
     let thread_pool = IoThread::new(3);
     let mut reader = Reader::new(thread_pool.open(filename).unwrap());
     let mut guesser = AlphabetGuesser::new();
@@ -279,7 +293,7 @@ where
             assert_eq!(width, record_width);
         }
         rows += 1;
-        seq_lengths.push(record_width as u32 - local_gaps as u32);
+        seq_lengths.push(record_width as u64 - local_gaps as u64);
     }
     let stats = AlnSimpleStats {
         alph: guesser.alph(),
@@ -287,8 +301,8 @@ where
         gap_cells: gap_cells as usize,
         width,
         rows,
-        avg_sequence_length: seq_lengths.iter().sum::<u32>() as f64 / seq_lengths.len() as f64,
-        median_sequence_length: medians::r_median(&seq_lengths),
+        avg_sequence_length: seq_lengths.iter().sum::<u64>() as f64 / seq_lengths.len() as f64,
+        median_sequence_length: median_of(&mut seq_lengths),
     };
     let pdis_result = match (p_dis, approx) {
         (false, _) => None,
