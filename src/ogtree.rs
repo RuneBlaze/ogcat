@@ -1,4 +1,5 @@
 use ahash::AHashSet;
+use itertools::Itertools;
 use rand::prelude::*;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use serde::Serialize;
@@ -12,7 +13,7 @@ use tabled::Tabled;
 #[derive(Debug)]
 pub struct TaxonSet {
     pub to_id: HashMap<String, usize>,
-    pub names: Vec<String>,
+    pub names: Vec<String>, // TODO: no need to keep two copies of the same string
     last: usize,
 }
 
@@ -477,7 +478,7 @@ pub fn centroid_edge_decomp(
         if non_leaf {
             assert_ne!(best_inbalance, u64::MAX, "No cut found");
         } else {
-            break;
+            continue;
         }
         for a in tree.ancestors(best_cut) {
             if a == root {

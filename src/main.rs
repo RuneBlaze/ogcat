@@ -43,10 +43,13 @@ enum Format {
 enum SubCommand {
     /// Compute the RF and related rates of two trees
     Rf {
+        /// path to the reference tree in Newick format
         #[clap(short, long = "ref")]
         reference: PathBuf,
+        /// path to the estimated tree in Newick format
         #[clap(short, long = "est")]
         estimated: PathBuf,
+        /// omit amplification of the randomized RF algorithm
         #[clap(short, long)]
         fast: bool,
     },
