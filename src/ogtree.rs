@@ -57,8 +57,8 @@ impl TaxonSet {
 pub struct Tree {
     pub taxa: Vec<i32>,
     pub parents: Vec<i32>,
-    // pub support: Vec<f64>, // branch support
-    // pub lengths: Vec<f64>, // branch lengths
+    pub support: Vec<f64>, // branch support
+    pub lengths: Vec<f64>, // branch lengths
     pub firstchild: Vec<i32>,
     pub nextsib: Vec<i32>,
     pub childcount: Vec<u32>,
@@ -543,8 +543,8 @@ impl RFPrettyOutput {
 pub fn parse_newick(taxon_set: &mut TaxonSet, newick: &str) -> Tree {
     let mut taxa: Vec<i32> = vec![-42];
     let mut parents: Vec<i32> = vec![0];
-    // let mut support: Vec<f64> = vec![-1.0];
-    // let mut lengths: Vec<f64> = vec![-1.0];
+    let mut support: Vec<f64> = vec![-1.0];
+    let mut lengths: Vec<f64> = vec![-1.0];
     let mut childcount: Vec<u32> = vec![0];
     let mut firstchild: Vec<i32> = vec![-1];
     let mut nextsib: Vec<i32> = vec![-1];
@@ -562,8 +562,8 @@ pub fn parse_newick(taxon_set: &mut TaxonSet, newick: &str) -> Tree {
             taxa.push(-1);
             childcount[n as usize] += 1;
             parents.push(n as i32);
-            // support.push(0.0);
-            // lengths.push(0.0);
+            support.push(0.0);
+            lengths.push(0.0);
             childcount.push(0);
             firstchild.push(-1);
             nextsib.push(-1);
@@ -577,8 +577,8 @@ pub fn parse_newick(taxon_set: &mut TaxonSet, newick: &str) -> Tree {
             taxa.push(-1);
             childcount[n as usize] += 1;
             parents.push(n as i32);
-            // support.push(0.0);
-            // lengths.push(0.0);
+            support.push(0.0);
+            lengths.push(0.0);
             childcount.push(0);
             firstchild.push(-1);
             nextsib.push(-1);
@@ -612,9 +612,9 @@ pub fn parse_newick(taxon_set: &mut TaxonSet, newick: &str) -> Tree {
                     }
                 }
             }
-            // if ls.len() > 0 {
-            //     lengths[n as usize] = ls.parse::<f64>().unwrap();
-            // }
+            if ls.len() > 0 {
+                lengths[n as usize] = ls.parse::<f64>().unwrap();
+            }
         } else {
             let mut ts = c.to_string();
             loop {
@@ -645,8 +645,8 @@ pub fn parse_newick(taxon_set: &mut TaxonSet, newick: &str) -> Tree {
     Tree {
         taxa,
         parents,
-        // support,
-        // lengths,
+        support,
+        lengths,
         firstchild,
         nextsib,
         childcount,
